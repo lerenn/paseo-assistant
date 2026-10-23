@@ -21,10 +21,10 @@ class FakePaseo {
         return {
           id,
           agents: {
-            create: async (agent: { title: string; config: { provider: string; systemPrompt: string; toolPolicy: { preapproved: { tool: string }[] } } }) => {
+            create: async (agent: { title: string; config: { provider: string; systemPrompt: string; options?: { allowedTools: string[] } } }) => {
               const agentId = `agent-${++this.next}`;
               this.agents.set(agentId, { archivedAt: null });
-              this.created.push({ provider: agent.config.provider, systemPrompt: agent.config.systemPrompt, tools: agent.config.toolPolicy.preapproved.map((t) => t.tool), background: options.background, title: agent.title });
+              this.created.push({ provider: agent.config.provider, systemPrompt: agent.config.systemPrompt, tools: agent.config.options?.allowedTools ?? [], background: options.background, title: agent.title });
               return { id: agentId };
             },
           },
@@ -81,11 +81,17 @@ describe("OverseerSession", () => {
       {
         provider: "claude/test",
         systemPrompt: OVERSEER_PROMPT,
-        tools: expect.arrayContaining(["list_agents", "get_agent_status", "list_pending_permissions"]),
+        tools: expect.arrayContaining(["mcp__paseo__list_agents", "mcp__paseo__list_pending_permissions"]),
         background: true,
         title: "Overseer",
       },
     ]);
+  });
+
+  it("leaves other providers to their own approval flow", async () => {
+    const other = new OverseerSession(new StateFile(path.join(dir, "other.json")), () => "codex/x", path.join(dir, "ws"));
+    await other.ensure(paseo);
+    expect(fake.created[0]?.tools).toEqual([]);
   });
 
   it("never creates two under concurrent calls", async () => {
