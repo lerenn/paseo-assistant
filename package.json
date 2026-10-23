@@ -1,0 +1,34 @@
+{
+  "name": "paseo-overseer",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A first mate for the other agents on a Paseo daemon: watches them, routes their questions and summarises for you, from a dock on the right.",
+  "license": "MIT",
+  "files": [
+    "paseo-plugin.json",
+    "OVERVIEW.md",
+    "client/",
+    "index.client.tsx",
+    "index.server.ts",
+    "server/",
+    "shared/",
+    "types/",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc --noEmit -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@getpaseo/plugin": "0.13.0-beta.2",
+    "@tanstack/react-query": "^5.104.5",
+    "@types/node": "^22.0.0",
+    "@types/react": "~19.2.0",
+    "react": "^19.1.0",
+    "react-native": "^0.81.5",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.0",
+    "zod": "^4.4.3"
+  }
+}
