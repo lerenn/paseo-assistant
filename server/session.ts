@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
-import { OVERSEER_PROMPT } from "./prompt";
+import { OVERSEER_PROMPT, PREAPPROVED_TOOLS } from "./prompt";
 
 export const TITLE = "Overseer";
 export const dataDir = path.join(process.env.PASEO_HOME ?? path.join(homedir(), ".paseo"), "plugin-data", "overseer");
@@ -24,7 +24,11 @@ export interface OverseerPaseo {
         create(options: {
           cwd: string;
           title: string;
-          config: { provider: string; systemPrompt: string };
+          config: {
+            provider: string;
+            systemPrompt: string;
+            toolPolicy: { preapproved: { kind: "mcp"; server: string; tool: string }[] };
+          };
         }): Promise<{ id: string }>;
       };
     }>;
@@ -130,7 +134,11 @@ export class OverseerSession {
     const agent = await workspace.agents.create({
       cwd: this.workDir,
       title: TITLE,
-      config: { provider: this.provider(), systemPrompt: OVERSEER_PROMPT },
+      config: {
+        provider: this.provider(),
+        systemPrompt: OVERSEER_PROMPT,
+        toolPolicy: { preapproved: PREAPPROVED_TOOLS },
+      },
     });
     const created = { agentId: agent.id, workspaceId: workspace.id };
     this.state.write(created);

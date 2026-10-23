@@ -25,3 +25,16 @@ agents-inbox (inbox_*), agents-warder (warder_*) and agents-leases (lease_*) too
 
 ## Honesty
 Report what the tools show. If you could not check something, say so. Do not guess an agent's state.`;
+
+
+/** Read-only tools the Overseer may call without asking, so a digest never waits on a permission prompt. */
+export const PREAPPROVED_TOOLS = [
+  { server: "paseo", tool: "list_agents" },
+  { server: "paseo", tool: "get_agent_status" },
+  { server: "paseo", tool: "get_agent_activity" },
+  { server: "paseo", tool: "list_pending_permissions" },
+  { server: "inbox", tool: "inbox_ask" },
+  { server: "inbox", tool: "inbox_list" },
+  { server: "warder", tool: "warder_list" },
+  { server: "leases", tool: "lease_list" },
+].map((ref) => ({ kind: "mcp" as const, ...ref }));

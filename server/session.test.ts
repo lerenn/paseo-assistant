@@ -8,7 +8,7 @@ import { OverseerSession, StateFile, type OverseerPaseo } from "./session";
 class FakePaseo {
   agents = new Map<string, { archivedAt: string | null }>();
   workspaces = new Map<string, { archived: boolean }>();
-  created: { provider: string; systemPrompt: string; background: boolean; title: string }[] = [];
+  created: { provider: string; systemPrompt: string; tools: string[]; background: boolean; title: string }[] = [];
   private next = 0;
 
   workspacesApi = this.buildWorkspaces();
@@ -21,10 +21,10 @@ class FakePaseo {
         return {
           id,
           agents: {
-            create: async (agent: { title: string; config: { provider: string; systemPrompt: string } }) => {
+            create: async (agent: { title: string; config: { provider: string; systemPrompt: string; toolPolicy: { preapproved: { tool: string }[] } } }) => {
               const agentId = `agent-${++this.next}`;
               this.agents.set(agentId, { archivedAt: null });
-              this.created.push({ ...agent.config, background: options.background, title: agent.title });
+              this.created.push({ provider: agent.config.provider, systemPrompt: agent.config.systemPrompt, tools: agent.config.toolPolicy.preapproved.map((t) => t.tool), background: options.background, title: agent.title });
               return { id: agentId };
             },
           },
@@ -78,7 +78,13 @@ describe("OverseerSession", () => {
     const state = await session.ensure(paseo);
     expect(state).toEqual({ agentId: "agent-2", workspaceId: "ws-1" });
     expect(fake.created).toEqual([
-      { provider: "claude/test", systemPrompt: OVERSEER_PROMPT, background: true, title: "Overseer" },
+      {
+        provider: "claude/test",
+        systemPrompt: OVERSEER_PROMPT,
+        tools: expect.arrayContaining(["list_agents", "get_agent_status", "list_pending_permissions"]),
+        background: true,
+        title: "Overseer",
+      },
     ]);
   });
 
