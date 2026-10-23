@@ -8,7 +8,7 @@ Version 1 only watches, routes and summarises. The Overseer reads agent status, 
 
 ## Setup
 
-Needs a Paseo build with the app dock, the right-hand panel plugins can add tabs to. The provider and model are a setting, claude/claude-sonnet-5-5 by default, and apply from the next new session.
+Needs a Paseo build with the app dock, the right-hand panel plugins can add tabs to, and the daemon setting `mcp.injectIntoAgents` turned on, so the Overseer gets Paseo's own agent tools. The provider and model are a setting, claude/claude-sonnet-5-5 by default, and apply from the next new session.
 
 If the Agents Inbox, Agents Warder or Agents Leases plugins are installed, the Overseer uses their tools: it asks you through the inbox when an agent needs a human answer, and looks at watched tasks and held leases. Without them it works from the Paseo agent tools and puts questions in its own chat.
 

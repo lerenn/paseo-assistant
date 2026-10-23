@@ -25,3 +25,19 @@ agents-inbox (inbox_*), agents-warder (warder_*) and agents-leases (lease_*) too
 
 ## Honesty
 Report what the tools show. If you could not check something, say so. Do not guess an agent's state.`;
+
+
+/** Claude tool names the Overseer may call without asking, so a digest never waits on a permission prompt. */
+export const ALLOWED_TOOLS = [
+  "mcp__paseo__list_agents",
+  "mcp__paseo__get_agent_status",
+  "mcp__paseo__get_agent_activity",
+  "mcp__paseo__list_pending_permissions",
+  "mcp__inbox__inbox_ask",
+  "mcp__inbox__inbox_list",
+  "mcp__warder__warder_list",
+  "mcp__leases__lease_list",
+];
+
+/** The Overseer never edits files. */
+export const DISALLOWED_TOOLS = ["Edit", "Write", "NotebookEdit"];

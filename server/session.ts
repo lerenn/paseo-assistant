@@ -1,10 +1,10 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
-import { OVERSEER_PROMPT } from "./prompt";
+import { ALLOWED_TOOLS, DISALLOWED_TOOLS, OVERSEER_PROMPT } from "./prompt";
 
 export const TITLE = "Overseer";
-export const dataDir = path.join(homedir(), ".paseo", "plugin-data", "overseer");
+export const dataDir = path.join(process.env.PASEO_HOME ?? path.join(homedir(), ".paseo"), "plugin-data", "overseer");
 
 export interface OverseerState {
   agentId: string;
@@ -24,7 +24,11 @@ export interface OverseerPaseo {
         create(options: {
           cwd: string;
           title: string;
-          config: { provider: string; systemPrompt: string };
+          config: {
+            provider: string;
+            systemPrompt: string;
+            options?: { allowedTools: string[]; disallowedTools: string[] };
+          };
         }): Promise<{ id: string }>;
       };
     }>;
@@ -122,6 +126,7 @@ export class OverseerSession {
 
   private async create(paseo: OverseerPaseo): Promise<OverseerState> {
     mkdirSync(this.workDir, { recursive: true });
+    const provider = this.provider();
     const workspace = await paseo.workspaces.create({
       source: { kind: "directory", path: this.workDir },
       title: TITLE,
@@ -130,7 +135,14 @@ export class OverseerSession {
     const agent = await workspace.agents.create({
       cwd: this.workDir,
       title: TITLE,
-      config: { provider: this.provider(), systemPrompt: OVERSEER_PROMPT },
+      config: {
+        provider,
+        systemPrompt: OVERSEER_PROMPT,
+        // Tool lists are Claude's options; other providers keep their own approval flow.
+        ...(provider.startsWith("claude/")
+          ? { options: { allowedTools: ALLOWED_TOOLS, disallowedTools: DISALLOWED_TOOLS } }
+          : {}),
+      },
     });
     const created = { agentId: agent.id, workspaceId: workspace.id };
     this.state.write(created);
