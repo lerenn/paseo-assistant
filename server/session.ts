@@ -4,7 +4,7 @@ import path from "node:path";
 import { OVERSEER_PROMPT } from "./prompt";
 
 export const TITLE = "Overseer";
-export const dataDir = path.join(homedir(), ".paseo", "plugin-data", "overseer");
+export const dataDir = path.join(process.env.PASEO_HOME ?? path.join(homedir(), ".paseo"), "plugin-data", "overseer");
 
 export interface OverseerState {
   agentId: string;
