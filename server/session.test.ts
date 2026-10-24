@@ -9,13 +9,15 @@ class FakePaseo {
   agents = new Map<string, { archivedAt: string | null }>();
   workspaces = new Map<string, { archived: boolean }>();
   created: { provider: string; systemPrompt: string; tools: string[]; background: boolean; title: string }[] = [];
+  runtimes: unknown[] = [];
   private next = 0;
 
   workspacesApi = this.buildWorkspaces();
 
   private buildWorkspaces() {
     return {
-      create: async (options: { source: { path: string }; title: string; background: boolean }) => {
+      create: async (options: { source: { path: string }; title: string; background: boolean; runtime: { id: string } }) => {
+        this.runtimes.push(options.runtime);
         const id = `ws-${++this.next}`;
         this.workspaces.set(id, { archived: false });
         return {
@@ -86,6 +88,11 @@ describe("OverseerSession", () => {
         title: "Overseer",
       },
     ]);
+  });
+
+  it("always asks for the local runtime, so it runs on the daemon whatever the defaults", async () => {
+    await session.ensure(paseo);
+    expect(fake.runtimes).toEqual([{ id: "local" }]);
   });
 
   it("leaves other providers to their own approval flow", async () => {

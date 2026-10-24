@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { CAPTAIN_HAT_SVG } from "../shared/icon";
 import { contributeHeaderButtons } from "./header-buttons";
 
 function fakeClient() {
@@ -41,5 +42,17 @@ describe("contributeHeaderButtons", () => {
     stop();
     expect(f.buttons.size).toBe(0);
     expect(f.release).toHaveBeenCalled();
+  });
+});
+
+describe("captain's hat icon", () => {
+  it("is a Lucide-style SVG that follows the theme colour", () => {
+    expect(CAPTAIN_HAT_SVG).toContain('viewBox="0 0 24 24"');
+    expect(CAPTAIN_HAT_SVG).toContain('stroke="currentColor"');
+    expect(CAPTAIN_HAT_SVG).toContain('stroke-width="2"');
+    expect(CAPTAIN_HAT_SVG).toContain('stroke-linecap="round"');
+    expect(CAPTAIN_HAT_SVG).toContain('stroke-linejoin="round"');
+    expect(CAPTAIN_HAT_SVG).toContain('fill="none"');
+    expect(CAPTAIN_HAT_SVG).not.toMatch(/<script|<style|\son[a-z]+=/i);
   });
 });
