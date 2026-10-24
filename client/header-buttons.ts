@@ -1,5 +1,7 @@
 import type { PluginButtonRegistration, PluginClientContext } from "@getpaseo/plugin/client";
 
+import { CAPTAIN_HAT_ICON } from "../shared/icon";
+
 export const PANEL_ID = "chat";
 
 /** One header button per workspace, kept in step with the workspace list. */
@@ -16,7 +18,7 @@ export function contributeHeaderButtons(client: PluginClientContext): () => void
         workspaceId,
         button: {
           title: "Overseer",
-          icon: "Anchor",
+          icon: CAPTAIN_HAT_ICON,
           behavior: { kind: "action", onPress: () => client.toggleAppPanel(PANEL_ID) },
         },
       }),

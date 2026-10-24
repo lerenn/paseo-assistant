@@ -18,6 +18,8 @@ export interface OverseerPaseo {
       source: { kind: "directory"; path: string };
       title: string;
       background: boolean;
+      /** Always the daemon host, whatever the defaults or an inherited runtime would pick. */
+      runtime: { id: "local" };
     }): Promise<{
       id: string;
       agents: {
@@ -131,6 +133,7 @@ export class OverseerSession {
       source: { kind: "directory", path: this.workDir },
       title: TITLE,
       background: true,
+      runtime: { id: "local" },
     });
     const agent = await workspace.agents.create({
       cwd: this.workDir,
