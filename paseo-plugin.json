@@ -1,6 +1,6 @@
 {
-  "id": "overseer",
-  "name": "Overseer",
+  "id": "assistant",
+  "name": "Assistant",
   "description": "A first mate for the other agents on this daemon: watches them, routes their questions and summarises for you, from a dock on the right.",
   "requirements": {
     "paseo": ">=0.13.0-beta.1"

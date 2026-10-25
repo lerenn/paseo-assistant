@@ -1,9 +1,9 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { OVERSEER_PROMPT } from "./prompt";
-import { OverseerSession, StateFile, type OverseerPaseo } from "./session";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ALLOWED_TOOLS, ASSISTANT_PROMPT, DISALLOWED_TOOLS } from "./prompt";
+import { AssistantSession, StateFile, type AssistantPaseo } from "./session";
 
 class FakePaseo {
   agents = new Map<string, { archivedAt: string | null }>();
@@ -39,7 +39,7 @@ class FakePaseo {
   }
 }
 
-function adapt(fake: FakePaseo): OverseerPaseo {
+function adapt(fake: FakePaseo): AssistantPaseo {
   return {
     workspaces: fake.workspacesApi,
     agents: {
@@ -62,17 +62,17 @@ function adapt(fake: FakePaseo): OverseerPaseo {
   };
 }
 
-describe("OverseerSession", () => {
+describe("AssistantSession", () => {
   let dir: string;
   let fake: FakePaseo;
-  let paseo: OverseerPaseo;
-  let session: OverseerSession;
+  let paseo: AssistantPaseo;
+  let session: AssistantSession;
 
   beforeEach(() => {
-    dir = mkdtempSync(path.join(tmpdir(), "overseer-"));
+    dir = mkdtempSync(path.join(tmpdir(), "assistant-"));
     fake = new FakePaseo();
     paseo = adapt(fake);
-    session = new OverseerSession(new StateFile(path.join(dir, "state.json")), () => "claude/test", path.join(dir, "ws"));
+    session = new AssistantSession(new StateFile(path.join(dir, "state.json")), () => "claude/test", path.join(dir, "ws"));
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -82,10 +82,10 @@ describe("OverseerSession", () => {
     expect(fake.created).toEqual([
       {
         provider: "claude/test",
-        systemPrompt: OVERSEER_PROMPT,
+        systemPrompt: ASSISTANT_PROMPT,
         tools: expect.arrayContaining(["mcp__paseo__list_agents", "mcp__paseo__list_pending_permissions"]),
         background: true,
-        title: "Overseer",
+        title: "Assistant",
       },
     ]);
   });
@@ -96,7 +96,7 @@ describe("OverseerSession", () => {
   });
 
   it("leaves other providers to their own approval flow", async () => {
-    const other = new OverseerSession(new StateFile(path.join(dir, "other.json")), () => "codex/x", path.join(dir, "ws"));
+    const other = new AssistantSession(new StateFile(path.join(dir, "other.json")), () => "codex/x", path.join(dir, "ws"));
     await other.ensure(paseo);
     expect(fake.created[0]?.tools).toEqual([]);
   });
@@ -109,7 +109,7 @@ describe("OverseerSession", () => {
 
   it("keeps the conversation across instances through the state file", async () => {
     const first = await session.ensure(paseo);
-    const again = new OverseerSession(new StateFile(path.join(dir, "state.json")), () => "x", path.join(dir, "ws"));
+    const again = new AssistantSession(new StateFile(path.join(dir, "state.json")), () => "x", path.join(dir, "ws"));
     expect(await again.ensure(paseo)).toEqual(first);
     expect(fake.created).toHaveLength(1);
   });
@@ -142,10 +142,71 @@ describe("OverseerSession", () => {
   });
 });
 
-describe("OVERSEER_PROMPT", () => {
+describe("ASSISTANT_PROMPT", () => {
   it("stays read-only and degrades without the optional tools", () => {
-    expect(OVERSEER_PROMPT).toContain("read-only");
-    expect(OVERSEER_PROMPT).toContain("inbox_ask");
-    expect(OVERSEER_PROMPT).toContain("exist only if their plugins are installed");
+    expect(ASSISTANT_PROMPT).toContain("send_agent_prompt");
+    expect(ASSISTANT_PROMPT).toContain("on the human's behalf");
+    expect(ASSISTANT_PROMPT).toContain("Nothing beyond messaging");
+    expect(ASSISTANT_PROMPT).toContain("inbox_ask");
+    expect(ASSISTANT_PROMPT).toContain("exist only if their plugins are installed");
+  });
+});
+
+describe("tools", () => {
+  it("lets the Assistant message agents and nothing that changes them", () => {
+    expect(ALLOWED_TOOLS).toContain("mcp__paseo__send_agent_prompt");
+    for (const mutating of [
+      "create_agent",
+      "archive_agent",
+      "kill_agent",
+      "cancel_agent",
+      "update_agent",
+      "set_agent_mode",
+      "respond_to_permission",
+    ]) {
+      expect(DISALLOWED_TOOLS).toContain(`mcp__paseo__${mutating}`);
+      expect(ALLOWED_TOOLS).not.toContain(`mcp__paseo__${mutating}`);
+    }
+  });
+});
+
+describe("after the rename from Overseer", () => {
+  const originalHome = process.env.PASEO_HOME;
+  afterEach(() => {
+    if (originalHome === undefined) delete process.env.PASEO_HOME;
+    else process.env.PASEO_HOME = originalHome;
+    vi.resetModules();
+  });
+
+  it("adopts the Overseer's conversation and keeps its workspace directory", async () => {
+    const home = mkdtempSync(path.join(tmpdir(), "assistant-home-"));
+    try {
+      const legacy = path.join(home, "plugin-data", "overseer");
+      mkdirSync(path.join(legacy, "workspace"), { recursive: true });
+      writeFileSync(path.join(legacy, "state.json"), JSON.stringify({ agentId: "agent-9", workspaceId: "ws-9" }));
+      process.env.PASEO_HOME = home;
+      vi.resetModules();
+      const fresh = await import("./session");
+      expect(fresh.defaultWorkDir()).toBe(path.join(legacy, "workspace"));
+      expect(new fresh.StateFile().read()).toEqual({ agentId: "agent-9", workspaceId: "ws-9" });
+      const adopted = path.join(home, "plugin-data", "assistant", "state.json");
+      expect(existsSync(adopted)).toBe(true);
+      expect(JSON.parse(readFileSync(adopted, "utf8"))).toEqual({ agentId: "agent-9", workspaceId: "ws-9" });
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  it("uses its own directory on a fresh install", async () => {
+    const home = mkdtempSync(path.join(tmpdir(), "assistant-home-"));
+    try {
+      process.env.PASEO_HOME = home;
+      vi.resetModules();
+      const fresh = await import("./session");
+      expect(fresh.defaultWorkDir()).toBe(path.join(home, "plugin-data", "assistant", "workspace"));
+      expect(new fresh.StateFile().read()).toBeNull();
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
   });
 });

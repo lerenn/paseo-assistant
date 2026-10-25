@@ -1,7 +1,5 @@
 import type { PluginButtonRegistration, PluginClientContext } from "@getpaseo/plugin/client";
 
-import { CAPTAIN_HAT_ICON } from "../shared/icon";
-
 export const PANEL_ID = "chat";
 
 /** One header button per workspace, kept in step with the workspace list. */
@@ -14,11 +12,11 @@ export function contributeHeaderButtons(client: PluginClientContext): () => void
     buttons.set(
       workspaceId,
       client.addHeaderButton({
-        id: "overseer",
+        id: "assistant",
         workspaceId,
         button: {
-          title: "Overseer",
-          icon: CAPTAIN_HAT_ICON,
+          title: "Assistant",
+          icon: "ConciergeBell",
           behavior: { kind: "action", onPress: () => client.toggleAppPanel(PANEL_ID) },
         },
       }),
@@ -56,7 +54,7 @@ export function contributeHeaderButtons(client: PluginClientContext): () => void
       return undefined;
     })
     .catch((error) => {
-      if (!lifetime.signal.aborted) console.error("Overseer: workspace observation failed", error);
+      if (!lifetime.signal.aborted) console.error("Assistant: workspace observation failed", error);
     });
 
   return () => {
