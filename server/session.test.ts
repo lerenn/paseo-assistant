@@ -8,7 +8,7 @@ import { AssistantSession, StateFile, type AssistantPaseo } from "./session";
 class FakePaseo {
   agents = new Map<string, { archivedAt: string | null }>();
   workspaces = new Map<string, { archived: boolean }>();
-  created: { provider: string; systemPrompt: string; tools: string[]; background: boolean; title: string }[] = [];
+  created: { labels?: Record<string, string>; provider: string; systemPrompt: string; tools: string[]; background: boolean; title: string }[] = [];
   runtimes: unknown[] = [];
   private next = 0;
 
@@ -23,10 +23,10 @@ class FakePaseo {
         return {
           id,
           agents: {
-            create: async (agent: { title: string; config: { provider: string; systemPrompt: string; options?: { allowedTools: string[] } } }) => {
+            create: async (agent: { title: string; labels?: Record<string, string>; config: { provider: string; systemPrompt: string; options?: { allowedTools: string[] } } }) => {
               const agentId = `agent-${++this.next}`;
               this.agents.set(agentId, { archivedAt: null });
-              this.created.push({ provider: agent.config.provider, systemPrompt: agent.config.systemPrompt, tools: agent.config.options?.allowedTools ?? [], background: options.background, title: agent.title });
+              this.created.push({ labels: agent.labels, provider: agent.config.provider, systemPrompt: agent.config.systemPrompt, tools: agent.config.options?.allowedTools ?? [], background: options.background, title: agent.title });
               return { id: agentId };
             },
           },
@@ -81,6 +81,7 @@ describe("AssistantSession", () => {
     expect(state).toEqual({ agentId: "agent-2", workspaceId: "ws-1" });
     expect(fake.created).toEqual([
       {
+        labels: { "paseo.assistant": "1" },
         provider: "claude/test",
         systemPrompt: ASSISTANT_PROMPT,
         tools: expect.arrayContaining(["mcp__paseo__list_agents", "mcp__paseo__list_pending_permissions"]),
@@ -149,6 +150,18 @@ describe("ASSISTANT_PROMPT", () => {
     expect(ASSISTANT_PROMPT).toContain("Nothing beyond messaging");
     expect(ASSISTANT_PROMPT).toContain("inbox_ask");
     expect(ASSISTANT_PROMPT).toContain("exist only if their plugins are installed");
+  });
+});
+
+describe("inbox answers", () => {
+  it("labels the Assistant for the Factory inbox and allows its inbox tools", async () => {
+    const fake = new FakePaseo();
+    const state = new StateFile(path.join(mkdtempSync(path.join(tmpdir(), "assistant-")), "state.json"));
+    await new AssistantSession(state, () => "claude/sonnet").ensure(adapt(fake));
+    expect(fake.created[0].labels).toEqual({ "paseo.assistant": "1" });
+    expect(ALLOWED_TOOLS).toContain("mcp__factory__inbox_pending");
+    expect(ALLOWED_TOOLS).toContain("mcp__factory__inbox_answer");
+    expect(ASSISTANT_PROMPT).toContain("only when the human explicitly tells you");
   });
 });
 

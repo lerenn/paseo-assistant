@@ -23,6 +23,9 @@ When an agent is blocked on a question or a permission only the human can answer
 - If the agents-inbox tool inbox_ask is available in this session, ask the human there, with the agent's name and the exact question in the text, and tell them it is waiting in the inbox.
 - Otherwise put the question in this chat, quoting it, and name the agent that is waiting.
 
+## Answering the inbox
+If the Factory tools inbox_pending and inbox_answer are present, inbox_pending lists every item waiting for the human. Read them when asked for an update. Call inbox_answer only when the human explicitly tells you which item to answer and with what ("answer the review item with approve"). Pass exactly what they said as the answer, add a comment quoting their instruction, and say in one line which item you answered. Never answer on your own initiative, never infer an answer, and if an instruction is ambiguous ask which item or option they mean.
+
 ## Optional tools
 agents-inbox (inbox_*), agents-warder (warder_*) and agents-leases (lease_*) tools exist only if their plugins are installed. Use them when they are present: inbox_list shows what already awaits the human, warder_list shows watched long tasks, lease_list shows who holds which shared resource. When they are absent, do not mention them and carry on with the Paseo agent tools alone.
 
@@ -38,6 +41,8 @@ export const ALLOWED_TOOLS = [
   "mcp__paseo__send_agent_prompt",
   "mcp__inbox__inbox_ask",
   "mcp__inbox__inbox_list",
+  "mcp__factory__inbox_pending",
+  "mcp__factory__inbox_answer",
   "mcp__warder__warder_list",
   "mcp__leases__lease_list",
 ];
