@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
-import { ALLOWED_TOOLS, DISALLOWED_TOOLS, ASSISTANT_PROMPT } from "./prompt";
+import { ALLOWED_TOOLS, DISALLOWED_TOOLS, ASSISTANT_PROMPT, KICKOFF_PROMPT } from "./prompt";
 
 export const TITLE = "Assistant";
 const pluginData = path.join(process.env.PASEO_HOME ?? path.join(homedir(), ".paseo"), "plugin-data");
@@ -39,6 +39,7 @@ export interface AssistantPaseo {
           config: {
             provider: string;
             systemPrompt: string;
+            mcpServers?: Record<string, { type: "http"; url: string; headers: Record<string, string>; alwaysLoad: boolean }>;
             options?: { allowedTools: string[]; disallowedTools: string[] };
           };
         }): Promise<{ id: string }>;
@@ -51,6 +52,7 @@ export interface AssistantPaseo {
       refresh(): Promise<unknown>;
       readonly archivedAt: string | null;
       archive(): Promise<unknown>;
+      send?(text: string, options?: { activeTurnBehavior?: "steer" | "interrupt" }): Promise<unknown>;
     };
   };
 }
@@ -98,7 +100,14 @@ export class AssistantSession {
     private readonly state: StateFile,
     private readonly provider: () => string,
     private readonly workDir = defaultWorkDir(),
+    /** The mailbox endpoint and the Assistant's own capability; null when it is not running. */
+    private readonly mail: () => Promise<{ url: string; token: string } | null> = async () => null,
   ) {}
+
+  /** The current Assistant agent, if any. */
+  currentAgentId(): string | null {
+    return this.state.read()?.agentId ?? null;
+  }
 
   ensure(paseo: AssistantPaseo): Promise<AssistantState> {
     return this.serialize(() => this.ensureNow(paseo));
@@ -148,6 +157,7 @@ export class AssistantSession {
   private async create(paseo: AssistantPaseo): Promise<AssistantState> {
     mkdirSync(this.workDir, { recursive: true });
     const provider = this.provider();
+    const mail = await this.mail();
     const workspace = await paseo.workspaces.create({
       source: { kind: "directory", path: this.workDir },
       title: TITLE,
@@ -162,6 +172,13 @@ export class AssistantSession {
       config: {
         provider,
         systemPrompt: ASSISTANT_PROMPT,
+        ...(mail
+          ? {
+              mcpServers: {
+                assistant: { type: "http" as const, url: `${mail.url}/mcp`, headers: { authorization: `Bearer ${mail.token}` }, alwaysLoad: true },
+              },
+            }
+          : {}),
         // Tool lists are Claude's options; other providers keep their own approval flow.
         ...(provider.startsWith("claude/")
           ? { options: { allowedTools: ALLOWED_TOOLS, disallowedTools: DISALLOWED_TOOLS } }
@@ -170,6 +187,8 @@ export class AssistantSession {
     });
     const created = { agentId: agent.id, workspaceId: workspace.id };
     this.state.write(created);
+    // Best effort: the Assistant sets up its mailbox heartbeat; a failure leaves it idle until spoken to.
+    await paseo.agents.ref(agent.id).send?.(KICKOFF_PROMPT).catch(() => undefined);
     return created;
   }
 

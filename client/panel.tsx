@@ -2,13 +2,23 @@ import { useRpc } from "@getpaseo/plugin/client";
 import type { PluginAppPanelProps } from "@getpaseo/plugin/client";
 import { AgentChat } from "@getpaseo/plugin/client/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { ensureRpc, resetRpc } from "../shared/rpc";
+import { unreadBadge } from "./mail-format";
+import { MailboxView, useMail } from "./mailbox";
 
 const SESSION_KEY = ["assistant", "session"];
 
-export function AssistantPanel({ theme, layout }: PluginAppPanelProps) {
+type Tab = "chat" | "mailbox";
+
+export function AssistantPanel(props: PluginAppPanelProps) {
+  const { theme, layout } = props;
+  // Panels get `navigation` on hosts that provide it; the link is inert without it.
+  const openAgent = (props as { navigation?: { openAgent?: (t: { agentId: string }) => void } }).navigation?.openAgent;
+  const [tab, setTab] = useState<Tab>("chat");
+  const mail = useMail();
+  const mails = mail.data?.mails ?? [];
   const ensure = useRpc(ensureRpc);
   const reset = useRpc(resetRpc);
   const queryClient = useQueryClient();
@@ -24,7 +34,7 @@ export function AssistantPanel({ theme, layout }: PluginAppPanelProps) {
       bar: {
         flexDirection: "row" as const,
         alignItems: "center" as const,
-        justifyContent: "flex-end" as const,
+        justifyContent: "flex-start" as const,
         paddingHorizontal: layout.compact ? 12 : 16,
         paddingVertical: 6,
       },
@@ -45,6 +55,14 @@ export function AssistantPanel({ theme, layout }: PluginAppPanelProps) {
   return (
     <View style={styles.screen}>
       <View style={styles.bar}>
+        {(["chat", "mailbox"] as const).map((t) => (
+          <Pressable key={t} accessibilityRole="tab" onPress={() => setTab(t)} style={[styles.button, { marginRight: 6, opacity: tab === t ? 1 : 0.6 }]}>
+            <Text style={styles.buttonText}>
+              {t === "chat" ? "Chat" : `Mailbox${unreadBadge(mails) ? ` (${unreadBadge(mails)})` : ""}`}
+            </Text>
+          </Pressable>
+        ))}
+        <View style={{ flex: 1 }} />
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="New session"
@@ -55,7 +73,9 @@ export function AssistantPanel({ theme, layout }: PluginAppPanelProps) {
           <Text style={styles.buttonText}>{restart.isPending ? "Starting…" : "New session"}</Text>
         </Pressable>
       </View>
-      {session.data ? (
+      {tab === "mailbox" ? (
+        <MailboxView theme={theme} mails={mails} openAgent={openAgent} />
+      ) : session.data ? (
         <AgentChat key={session.data.agentId} agentId={session.data.agentId} />
       ) : error ? (
         <Text style={styles.error}>Assistant could not start: {error.message}</Text>

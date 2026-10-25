@@ -15,3 +15,9 @@ If the Agents Inbox, Agents Warder or Agents Leases plugins are installed, the A
 ## What it reads and where it runs
 
 The Assistant is an ordinary agent on your configured provider, so what it sees of your agents' activity is sent to that provider. Its state, the ID of the current conversation, is kept in the plugin data folder on the daemon machine.
+
+## Mailbox
+
+New top-level agents mail the Assistant with the MCP tool `assistant_mail(subject, body, kind)` at milestones only: start, blocked, needs_louis, pr, done. The sender is the calling agent, never what it claims. Mails are kept in the plugin data folder and listed in the Mailbox tab of the dock, unread first, each linking to its agent. The Assistant reads them with `assistant_mailbox` and `assistant_mark_read`, from a 15-minute Paseo heartbeat it sets up at the start of a session; a `needs_louis` mail wakes it at once.
+
+Which agents are told to mail is two settings, `mailIncludeLabels` and `mailExcludeLabels` (label rules such as `key=value` or `key`, comma separated). Subagents are always left out; an include rule wins over an exclude rule. Defaults leave out agents labelled `paseo.factory=1` except `paseo.factory.supervisor=1`. This needs a Paseo build whose `agent.create` hook carries labels and the parent agent; on an older daemon nothing is injected. The mailbox listens on `127.0.0.1:47842` (`PASEO_ASSISTANT_PORT` to change). An Assistant created before this feature has no mail tools: use New session.
