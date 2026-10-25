@@ -35,6 +35,7 @@ export interface AssistantPaseo {
         create(options: {
           cwd: string;
           title: string;
+          labels?: Record<string, string>;
           config: {
             provider: string;
             systemPrompt: string;
@@ -156,6 +157,8 @@ export class AssistantSession {
     const agent = await workspace.agents.create({
       cwd: this.workDir,
       title: TITLE,
+      // The Factory inbox lets only agents with this label answer on the human's behalf.
+      labels: { "paseo.assistant": "1" },
       config: {
         provider,
         systemPrompt: ASSISTANT_PROMPT,
