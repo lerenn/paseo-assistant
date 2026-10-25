@@ -35,6 +35,7 @@ export interface AssistantPaseo {
         create(options: {
           cwd: string;
           title: string;
+          labels?: Record<string, string>;
           config: {
             provider: string;
             systemPrompt: string;
