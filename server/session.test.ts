@@ -102,6 +102,30 @@ describe("AssistantSession", () => {
     expect(fake.created[0]?.tools).toEqual([]);
   });
 
+  it("gives the Assistant the mailbox endpoint with its own capability and kicks off the heartbeat", async () => {
+    const sent: string[] = [];
+    const mcp: unknown[] = [];
+    const withMail = new AssistantSession(new StateFile(path.join(dir, "mail.json")), () => "claude/test", path.join(dir, "ws"), async () => ({ url: "http://127.0.0.1:9", token: "tok" }));
+    const inner = paseo.workspaces.create;
+    const spied: AssistantPaseo = {
+      agents: { ref: (id) => ({ ...paseo.agents.ref(id), send: async (text: string) => void sent.push(text) }) },
+      workspaces: {
+        archive: paseo.workspaces.archive,
+        create: async (options) => {
+          const ws = await inner(options);
+          return { id: ws.id, agents: { create: (agent) => (mcp.push(agent.config.mcpServers), ws.agents.create(agent)) } };
+        },
+      },
+    };
+    await withMail.ensure(spied);
+    expect(mcp).toEqual([{ assistant: { type: "http", url: "http://127.0.0.1:9/mcp", headers: { authorization: "Bearer tok" }, alwaysLoad: true } }]);
+    expect(sent).toHaveLength(1);
+    expect(ASSISTANT_PROMPT).toContain("assistant_mailbox");
+    expect(ALLOWED_TOOLS).toContain("mcp__assistant__assistant_mailbox");
+    expect(ALLOWED_TOOLS).toContain("mcp__paseo__create_heartbeat");
+    expect(DISALLOWED_TOOLS).not.toContain("mcp__paseo__create_heartbeat");
+  });
+
   it("never creates two under concurrent calls", async () => {
     const results = await Promise.all([session.ensure(paseo), session.ensure(paseo), session.ensure(paseo)]);
     expect(new Set(results.map((r) => r.agentId)).size).toBe(1);
