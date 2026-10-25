@@ -16,7 +16,7 @@ export function contributeHeaderButtons(client: PluginClientContext): () => void
         workspaceId,
         button: {
           title: "Assistant",
-          icon: "ConciergeBell",
+          icon: "Sparkles",
           behavior: { kind: "action", onPress: () => client.toggleAppPanel(PANEL_ID) },
         },
       }),
