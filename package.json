@@ -1,5 +1,5 @@
 {
-  "name": "paseo-overseer",
+  "name": "paseo-assistant",
   "private": true,
   "version": "0.1.0",
   "description": "A first mate for the other agents on a Paseo daemon: watches them, routes their questions and summarises for you, from a dock on the right.",

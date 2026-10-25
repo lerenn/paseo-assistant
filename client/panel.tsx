@@ -6,9 +6,9 @@ import { useMemo } from "react";
 import { Pressable, Text, View } from "react-native";
 import { ensureRpc, resetRpc } from "../shared/rpc";
 
-const SESSION_KEY = ["overseer", "session"];
+const SESSION_KEY = ["assistant", "session"];
 
-export function OverseerPanel({ theme, layout }: PluginAppPanelProps) {
+export function AssistantPanel({ theme, layout }: PluginAppPanelProps) {
   const ensure = useRpc(ensureRpc);
   const reset = useRpc(resetRpc);
   const queryClient = useQueryClient();
@@ -58,9 +58,9 @@ export function OverseerPanel({ theme, layout }: PluginAppPanelProps) {
       {session.data ? (
         <AgentChat key={session.data.agentId} agentId={session.data.agentId} />
       ) : error ? (
-        <Text style={styles.error}>Overseer could not start: {error.message}</Text>
+        <Text style={styles.error}>Assistant could not start: {error.message}</Text>
       ) : (
-        <Text style={styles.note}>Starting Overseer…</Text>
+        <Text style={styles.note}>Starting Assistant…</Text>
       )}
     </View>
   );

@@ -1,4 +1,4 @@
-# paseo-overseer
+# paseo-assistant
 
 A Paseo plugin: a first mate for the other agents on a daemon. See [OVERVIEW.md](OVERVIEW.md).
 

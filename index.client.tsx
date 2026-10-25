@@ -1,10 +1,9 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { contributeHeaderButtons, PANEL_ID } from "./client/header-buttons";
-import { OverseerPanel } from "./client/panel";
-import { CAPTAIN_HAT_ICON } from "./shared/icon";
+import { AssistantPanel } from "./client/panel";
 
 export default function contribute(client: PluginClientContext) {
-  client.addAppPanel({ id: PANEL_ID, title: "Overseer", icon: CAPTAIN_HAT_ICON, Component: OverseerPanel });
+  client.addAppPanel({ id: PANEL_ID, title: "Assistant", icon: "ConciergeBell", Component: AssistantPanel });
   const stopButtons = contributeHeaderButtons(client);
   return () => {
     stopButtons();

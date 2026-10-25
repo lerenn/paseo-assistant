@@ -3,16 +3,16 @@ import { z } from "zod";
 
 const sessionSchema = z.object({ agentId: z.string(), workspaceId: z.string() });
 
-/** The Overseer conversation, created when it is missing or archived. */
+/** The Assistant conversation, created when it is missing or archived. */
 export const ensureRpc = defineRpc({
-  name: "overseer.ensure",
+  name: "assistant.ensure",
   input: z.object({}),
   output: sessionSchema,
 });
 
 /** Archives the current conversation and starts a fresh one. */
 export const resetRpc = defineRpc({
-  name: "overseer.reset",
+  name: "assistant.reset",
   input: z.object({}),
   output: sessionSchema,
 });
