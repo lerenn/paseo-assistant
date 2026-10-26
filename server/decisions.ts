@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { decisionSchema, orderOptions, type Decision } from "../shared/decision";
+import { decisionSchema, isOpen, orderOptions, type Decision } from "../shared/decision";
 
 const MAX_DECISIONS = 500;
 
@@ -39,6 +39,7 @@ export class DecisionStore {
       options: orderOptions(input.options, input.recommended),
       askedAt: this.now(),
       deliveredAt: null,
+      cancelledAt: null,
       answer: null,
     };
     if (new Set(decision.options).size !== decision.options.length) throw new Error("options must be distinct");
@@ -50,8 +51,9 @@ export class DecisionStore {
 
   /** Open decisions first (oldest first), then answered ones (newest first). */
   list(): Decision[] {
-    const open = this.decisions.filter((d) => !d.answer).sort((a, b) => a.askedAt - b.askedAt);
-    const done = this.decisions.filter((d) => d.answer).sort((a, b) => b.answer!.at - a.answer!.at);
+    const open = this.decisions.filter(isOpen).sort((a, b) => a.askedAt - b.askedAt);
+    const doneAt = (d: Decision) => d.answer?.at ?? d.cancelledAt ?? 0;
+    const done = this.decisions.filter((d) => !isOpen(d)).sort((a, b) => doneAt(b) - doneAt(a));
     return [...open, ...done];
   }
 
@@ -60,7 +62,7 @@ export class DecisionStore {
     const at = this.now();
     let changed = false;
     for (const d of this.decisions) {
-      if (ids.includes(d.id) && d.answer && d.deliveredAt === null) {
+      if (ids.includes(d.id) && (d.answer || d.cancelledAt !== null) && d.deliveredAt === null) {
         d.deliveredAt = at;
         changed = true;
       }
@@ -69,7 +71,18 @@ export class DecisionStore {
   }
 
   openCount(): number {
-    return this.decisions.filter((d) => !d.answer).length;
+    return this.decisions.filter(isOpen).length;
+  }
+
+  /** The user dropped it: it is no longer open and the Assistant is told. Refused once answered or already cancelled. */
+  cancel(id: string): Decision {
+    const decision = this.decisions.find((d) => d.id === id);
+    if (!decision) throw new Error("Unknown decision");
+    if (decision.answer) throw new Error("Decision already answered");
+    if (decision.cancelledAt !== null) throw new Error("Decision already cancelled");
+    decision.cancelledAt = this.now();
+    this.save();
+    return decision;
   }
 
   /** Records the answer once; a second answer to the same decision is refused. */
@@ -77,6 +90,7 @@ export class DecisionStore {
     const decision = this.decisions.find((d) => d.id === id);
     if (!decision) throw new Error("Unknown decision");
     if (decision.answer) throw new Error("Decision already answered");
+    if (decision.cancelledAt !== null) throw new Error("Decision was cancelled");
     if (!other && !decision.options.includes(text)) throw new Error("Not one of the options");
     decision.answer = { text, other, at: this.now(), source };
     this.save();
@@ -100,4 +114,9 @@ export function decisionNudge(decision: Decision): string {
     `Answer: ${a.text}${a.other ? " (free text)" : ""}`,
     "Act on it, and tell the agent concerned if it is waiting.",
   ].join("\n");
+}
+
+/** What the Assistant is told when the user cancels: the id and the question, so it can tell anyone waiting not to wait. */
+export function cancelNudge(decision: Decision): string {
+  return [`Decision cancelled by the user (id ${decision.id}): ${decision.question}`, "Do not wait for an answer; tell any agent that is waiting on it not to wait."].join("\n");
 }

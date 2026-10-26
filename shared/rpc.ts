@@ -83,3 +83,10 @@ export const shimsRpc = defineRpc({
     removable: z.boolean(),
   }),
 });
+
+/** Cancels an open decision (the × on its card); the Assistant is told through the delivery queue. */
+export const decisionCancelRpc = defineRpc({
+  name: "assistant.decision.cancel",
+  input: z.object({ id: z.string() }),
+  output: z.object({ decision: decisionSchema }),
+});

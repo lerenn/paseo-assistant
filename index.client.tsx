@@ -2,6 +2,7 @@ import type { PluginClientContext, PluginSidebarItemProps } from "@getpaseo/plug
 import { SidebarRow } from "@getpaseo/plugin/client/ui";
 import { DecisionsBadge, useDecisions } from "./client/decisions";
 import { BusyIcon, IdleIcon, useAssistantBusy } from "./client/busy-icon";
+import { isOpen } from "./shared/decision";
 import { countBadge } from "./client/mail-format";
 import { AssistantScreen } from "./client/screen";
 
@@ -9,7 +10,7 @@ export const SCREEN_ID = "assistant";
 
 function AssistantItem({ currentScreen, openScreen }: PluginSidebarItemProps) {
   const busy = useAssistantBusy();
-  const open = (useDecisions().data?.decisions ?? []).filter((d) => !d.answer).length;
+  const open = (useDecisions().data?.decisions ?? []).filter(isOpen).length;
   return (
     <SidebarRow
       icon={busy ? BusyIcon : IdleIcon}

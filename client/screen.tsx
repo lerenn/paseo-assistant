@@ -5,6 +5,7 @@ import { Icon } from "@getpaseo/plugin/client/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState, type ComponentType } from "react";
 import { Pressable, Text, View } from "react-native";
+import { isOpen } from "../shared/decision";
 import { ensureRpc, resetRpc } from "../shared/rpc";
 import { DecisionsBadge, DecisionsView, useDecisions } from "./decisions";
 import { ItemsView, useItems } from "./items";
@@ -40,7 +41,7 @@ export function AssistantScreen(props: PluginScreenProps) {
   const items = useItems().data?.items ?? [];
   const counts = {
     unreadMail: mails.filter((m) => !m.read).length,
-    openDecisions: decisions.filter((d) => !d.answer).length,
+    openDecisions: decisions.filter(isOpen).length,
     openItems: items.filter((i) => !i.closed).length,
   };
   const ensure = useRpc(ensureRpc);

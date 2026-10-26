@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { orderOptions } from "../shared/decision";
 import { McpServer } from "./mcp";
 import { DecisionStore, decisionNudge } from "./decisions";
@@ -214,5 +214,74 @@ describe("decision status and assistant_decision_list", () => {
     const { ASSISTANT_PROMPT, ALLOWED_TOOLS } = await import("./prompt");
     expect(ASSISTANT_PROMPT).toContain("assistant_decision_list");
     expect(ALLOWED_TOOLS).toContain("mcp__assistant__assistant_decision_list");
+  });
+});
+
+describe("cancelling a decision (the × on its card)", () => {
+  it("moves it out of the open ones with no answer, refuses a second cancel or a later answer, and not after an answer", () => {
+    let t = 0;
+    const store = new DecisionStore(path.join(dir, "c.json"), () => ++t);
+    const a = store.add(input);
+    const b = store.add({ ...input, question: "Second?" });
+    const cancelled = store.cancel(a.id);
+    expect(cancelled).toMatchObject({ id: a.id, answer: null, cancelledAt: 3 });
+    expect(store.openCount()).toBe(1);
+    expect(store.list().map((d) => d.id)).toEqual([b.id, a.id]); // open first, then done
+    expect(() => store.cancel(a.id)).toThrow(/already cancelled/);
+    expect(() => store.answer(a.id, "Yes", false)).toThrow(/cancelled/);
+    store.answer(b.id, "No", false);
+    expect(() => store.cancel(b.id)).toThrow(/already answered/);
+    expect(() => store.cancel("nope")).toThrow(/Unknown/);
+    // Survives a restart.
+    expect(new DecisionStore(path.join(dir, "c.json")).list().find((d) => d.id === a.id)?.cancelledAt).toBe(3);
+  });
+
+  it("is told to the Assistant with the id and the question, and marked delivered", async () => {
+    const { cancelNudge } = await import("./decisions");
+    const store = new DecisionStore(path.join(dir, "n.json"));
+    const d = store.cancel(store.add(input).id);
+    expect(cancelNudge(d)).toMatch(/^Decision cancelled by the user \(id .+\): Ship it\?/);
+    expect(cancelNudge(d)).toMatch(/not to wait/);
+    store.markDelivered([d.id]);
+    expect(store.list()[0].deliveredAt).not.toBeNull();
+  });
+
+  it("goes through the same idle-only queue as answers", async () => {
+    const { Delivery, PendingDeliveries } = await import("./delivery");
+    const { cancelNudge } = await import("./decisions");
+    const store = new DecisionStore(path.join(dir, "q.json"));
+    const d = store.cancel(store.add(input).id);
+    const queue = new PendingDeliveries(path.join(dir, "pq.json"));
+    const sent: string[] = [];
+    const state = { status: "running" as string | null };
+    vi.useFakeTimers();
+    const delivery = new Delivery({ queue, status: async () => state.status, decisionText: () => cancelNudge(d), send: async (t) => void sent.push(t), debounceMs: 10, pollMs: 100 });
+    delivery.enqueueDecision(d.id);
+    await vi.advanceTimersByTimeAsync(50);
+    expect(sent).toEqual([]); // the Assistant is running: never interrupted
+    state.status = "idle";
+    await vi.advanceTimersByTimeAsync(300);
+    expect(sent[0]).toMatch(/Decision cancelled by the user/);
+    vi.useRealTimers();
+  });
+
+  it("assistant_decision_list shows status cancelled, filters on it, and keeps cancelled ones out of pending", async () => {
+    const c: ToolContext = {
+      capability: { role: "assistant" },
+      agentsMail: new AgentsMailClient(path.join(dir, "none.json")),
+      decisions: new DecisionStore(path.join(dir, "l.json")),
+      items: new ItemStore(path.join(dir, "i.json")),
+      paseo: () => null,
+      renew: async () => ({ agentId: "x" }),
+      nameOf: async () => "x",
+    };
+    const open = c.decisions.add(input);
+    const dropped = c.decisions.add({ ...input, question: "Dropped?" });
+    c.decisions.cancel(dropped.id);
+    const list = async (args: unknown) =>
+      JSON.parse(((await new McpServer(mailTools).handle({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "assistant_decision_list", arguments: args } }, c)) as any).result.content[0].text) as any[];
+    expect((await list({ status: "cancelled" })).map((d) => [d.question, d.status, d.answer])).toEqual([["Dropped?", "cancelled", null]]);
+    expect((await list({ status: "cancelled" }))[0].cancelledAt).toBeTruthy();
+    expect((await list({ status: "pending" })).map((d) => d.id)).toEqual([open.id]);
   });
 });

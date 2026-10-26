@@ -11,6 +11,8 @@ export const decisionSchema = z.object({
   askedAt: z.number(),
   /** When the answer was passed on to the Assistant (answers given in the tab); null until then, and for ones closed in chat. */
   deliveredAt: z.number().nullable().default(null),
+  /** Set when the user cancelled it (the × on its card); it then has no answer and is no longer open. */
+  cancelledAt: z.number().nullable().default(null),
   answer: z
     .object({
       text: z.string(),
@@ -30,12 +32,16 @@ export function orderOptions(options: readonly string[], recommended: string): s
   return [trimmed[index], ...trimmed.filter((_, i) => i !== index)];
 }
 
-export const DECISION_STATUSES = ["pending", "answered", "delivered", "closed"] as const;
+export const DECISION_STATUSES = ["pending", "answered", "delivered", "closed", "cancelled"] as const;
 export type DecisionStatus = (typeof DECISION_STATUSES)[number];
 
-/** pending: unanswered. answered: answered in the tab, not yet told to the Assistant. delivered: told. closed: answered in chat. */
+/** pending: unanswered. cancelled: the user dropped it. answered: answered in the tab, not yet told to the Assistant. delivered: told. closed: answered in chat. */
 export function decisionStatus(d: Decision): DecisionStatus {
+  if (d.cancelledAt !== null) return "cancelled";
   if (!d.answer) return "pending";
   if (d.answer.source === "chat") return "closed";
   return d.deliveredAt !== null ? "delivered" : "answered";
 }
+
+/** Still waiting for the user: neither answered nor cancelled. */
+export const isOpen = (d: Decision): boolean => !d.answer && d.cancelledAt === null;

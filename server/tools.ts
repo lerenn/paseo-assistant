@@ -110,7 +110,7 @@ export const mailTools: ToolDef[] = [
   {
     name: "assistant_decision_list",
     description:
-      "List the decisions you queued, with status: pending (unanswered), answered (answered in the tab, not yet passed to you), delivered (passed to you) or closed (answered in chat). Each has id, question, options, the recommended option (the first), the answer and its source (tab or chat), and timestamps (created, answered, delivered). Filter by status and by created time (since, until: ISO dates or epoch milliseconds). Check it when asked what is waiting and before queueing a decision, to avoid duplicates and catch answers not yet delivered.",
+      "List the decisions you queued, with status: pending (unanswered), cancelled (the user dropped it with the ×), answered (answered in the tab, not yet passed to you), delivered (passed to you) or closed (answered in chat). Each has id, question, options, the recommended option (the first), the answer and its source (tab or chat), and timestamps (created, answered, delivered). Filter by status and by created time (since, until: ISO dates or epoch milliseconds). Check it when asked what is waiting and before queueing a decision, to avoid duplicates and catch answers not yet delivered.",
     roles: ["assistant"],
     input: z.object({
       status: z.enum(DECISION_STATUSES).optional(),
@@ -141,6 +141,7 @@ export const mailTools: ToolDef[] = [
           source: d.answer?.source ?? null,
           createdAt: iso(d.askedAt),
           answeredAt: iso(d.answer?.at),
+          cancelledAt: iso(d.cancelledAt),
           deliveredAt: iso(d.deliveredAt),
         }));
     },
