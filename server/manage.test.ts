@@ -30,8 +30,8 @@ describe("managing agents", () => {
     expect(ALLOWED_TOOLS.filter((t) => DISALLOWED_TOOLS.includes(t))).toEqual([]);
   });
 
-  it("keeps off what must stay off: file edits, permission answers, killing, terminals, scripts, other schedule changes", () => {
-    for (const tool of ["Edit", "Write", "NotebookEdit", ...PASEO(["kill_agent", "respond_to_permission", "update_schedule", "pause_schedule", "resume_schedule", "run_schedule_once", "create_terminal", "kill_terminal", "send_terminal_keys", "start_workspace_script", "stop_workspace_script"])]) {
+  it("keeps off what must stay off: notebook edits (Write and Edit are scoped to the memory folder, see renew.test), permission answers, killing, terminals, scripts, other schedule changes", () => {
+    for (const tool of ["NotebookEdit", "MultiEdit", ...PASEO(["kill_agent", "respond_to_permission", "update_schedule", "pause_schedule", "resume_schedule", "run_schedule_once", "create_terminal", "kill_terminal", "send_terminal_keys", "start_workspace_script", "stop_workspace_script"])]) {
       expect(DISALLOWED_TOOLS, tool).toContain(tool);
       expect(ALLOWED_TOOLS, tool).not.toContain(tool);
     }
@@ -144,7 +144,7 @@ describe("agent management tools", () => {
   describe("as MCP tools", () => {
     const ctx = (role: "agent" | "assistant", paseo: ManagePaseo | null): ToolContext => {
       const dir = mkdtempSync(path.join(tmpdir(), "manage-"));
-      return { capability: { role }, agentsMail: new AgentsMailClient(path.join(dir, "n.json")), decisions: new DecisionStore(path.join(dir, "d.json")), items: new ItemStore(path.join(dir, "i.json")), paseo: () => paseo, nameOf: async () => "x" };
+      return { capability: { role }, agentsMail: new AgentsMailClient(path.join(dir, "n.json")), decisions: new DecisionStore(path.join(dir, "d.json")), items: new ItemStore(path.join(dir, "i.json")), paseo: () => paseo, renew: async () => ({ agentId: "new" }), nameOf: async () => "x" };
     };
     const call = (c: ToolContext, name: string, args: unknown) => new McpServer(mailTools).handle({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }, c) as Promise<any>;
 

@@ -60,6 +60,7 @@ describe("item tools", () => {
     decisions: new DecisionStore(path.join(dir, "d.json")),
     items: new ItemStore(path.join(dir, "i.json")),
     paseo: () => null,
+    renew: async () => ({ agentId: "new" }),
     nameOf: async () => "x",
   });
   const call = (c: ToolContext, name: string, args: unknown) =>

@@ -1,9 +1,13 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
+import { homedir as osHome } from "node:os";
+import { HandoverStore, handoverPrompt, type Handover } from "./handover";
+import { memoryRules } from "./memory";
 import { ALLOWED_TOOLS, DISALLOWED_TOOLS, ASSISTANT_PROMPT, KICKOFF_PROMPT } from "./prompt";
 
 export const TITLE = "Assistant";
+const RENEW_GAP_MIN = 10;
 const pluginData = path.join(process.env.PASEO_HOME ?? path.join(homedir(), ".paseo"), "plugin-data");
 export const dataDir = path.join(pluginData, "assistant");
 /** The plugin was called "overseer": its conversation and background workspace are kept where they are. */
@@ -102,6 +106,10 @@ export class AssistantSession {
     private readonly workDir = defaultWorkDir(),
     /** The mailbox endpoint and the Assistant's own capability; null when it is not running. */
     private readonly mail: () => Promise<{ url: string; token: string } | null> = async () => null,
+    private readonly handovers: HandoverStore = new HandoverStore(path.join(dataDir, "handover.json")),
+    private readonly home: string = osHome(),
+    /** How long the old session is left to finish its tool call before it is archived. */
+    private readonly archiveDelayMs = 5_000,
   ) {}
 
   /** The current Assistant agent, if any. */
@@ -120,6 +128,25 @@ export class AssistantSession {
       if (current) await this.archive(paseo, current);
       this.state.write(null);
       return this.create(paseo);
+    });
+  }
+
+  /**
+   * The Assistant starts its own new session: the handover is saved, the new agent is created and told it first, and
+   * the old one is archived a moment later (it is the caller, so its tool reply must get out first). At most one
+   * renew per 10 minutes.
+   */
+  renew(paseo: AssistantPaseo, input: { handover: string; heartbeatId?: string }, now: () => number = Date.now): Promise<AssistantState> {
+    return this.serialize(async () => {
+      const wait = this.handovers.wait(now());
+      if (wait > 0) throw new Error(`A new session was started ${Math.ceil((RENEW_GAP_MIN * 60_000 - wait) / 60_000)} min ago; wait ${Math.ceil(wait / 60_000)} more min before renewing again.`);
+      const old = this.state.read();
+      const record: Handover = { text: input.handover, heartbeatId: input.heartbeatId ?? null, at: now(), fromAgentId: old?.agentId ?? null, toAgentId: null };
+      this.handovers.write(record);
+      const created = await this.create(paseo, handoverPrompt(record, KICKOFF_PROMPT));
+      this.handovers.write({ ...record, toAgentId: created.agentId });
+      if (old) setTimeout(() => void this.archive(paseo, old), this.archiveDelayMs);
+      return created;
     });
   }
 
@@ -154,10 +181,11 @@ export class AssistantSession {
     await paseo.workspaces.archive(state.workspaceId).catch(() => undefined);
   }
 
-  private async create(paseo: AssistantPaseo): Promise<AssistantState> {
+  private async create(paseo: AssistantPaseo, firstPrompt: string = KICKOFF_PROMPT): Promise<AssistantState> {
     mkdirSync(this.workDir, { recursive: true });
     const provider = this.provider();
     const mail = await this.mail();
+    const memory = memoryRules(this.workDir, this.home);
     const workspace = await paseo.workspaces.create({
       source: { kind: "directory", path: this.workDir },
       title: TITLE,
@@ -181,14 +209,14 @@ export class AssistantSession {
           : {}),
         // Tool lists are Claude's options; other providers keep their own approval flow.
         ...(provider.startsWith("claude/")
-          ? { options: { allowedTools: ALLOWED_TOOLS, disallowedTools: DISALLOWED_TOOLS } }
+          ? { options: { allowedTools: [...ALLOWED_TOOLS, ...memory.allow], disallowedTools: [...DISALLOWED_TOOLS, ...memory.deny] } }
           : {}),
       },
     });
     const created = { agentId: agent.id, workspaceId: workspace.id };
     this.state.write(created);
     // Best effort: the Assistant sets up its mailbox heartbeat; a failure leaves it idle until spoken to.
-    await paseo.agents.ref(agent.id).send?.(KICKOFF_PROMPT).catch(() => undefined);
+    await paseo.agents.ref(agent.id).send?.(firstPrompt).catch(() => undefined);
     return created;
   }
 

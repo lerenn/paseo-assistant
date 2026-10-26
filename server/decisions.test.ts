@@ -86,6 +86,7 @@ describe("assistant_decision_add", () => {
     decisions: new DecisionStore(path.join(dir, "d.json")),
     items: new ItemStore(path.join(dir, "i.json")),
     paseo: () => null,
+    renew: async () => ({ agentId: "new" }),
     nameOf: async () => "x",
   });
   const call = (c: ToolContext, args: unknown) =>
@@ -117,6 +118,7 @@ describe("assistant_decision_close", () => {
     decisions: new DecisionStore(path.join(dir, "d.json")),
     items: new ItemStore(path.join(dir, "i.json")),
     paseo: () => null,
+    renew: async () => ({ agentId: "new" }),
     nameOf: async () => "x",
   });
   const call = (c: ToolContext, name: string, args: unknown) =>
@@ -159,6 +161,7 @@ describe("decision status and assistant_decision_list", () => {
     decisions: new DecisionStore(path.join(dir, "d.json"), () => Date.parse("2026-10-26T10:00:00Z")),
     items: new ItemStore(path.join(dir, "i.json")),
     paseo: () => null,
+    renew: async () => ({ agentId: "new" }),
     nameOf: async () => "x",
   });
   const list = async (c: ToolContext, args: unknown = {}) =>
