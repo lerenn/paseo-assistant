@@ -1,33 +1,45 @@
 import { useRpc } from "@getpaseo/plugin/client";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import * as hostUi from "@getpaseo/plugin/client/ui";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState, type ComponentType } from "react";
 import { Pressable, Text, View } from "react-native";
 import { ensureRpc, resetRpc } from "../shared/rpc";
-import { DecisionsView, useDecisions } from "./decisions";
+import { DecisionsBadge, DecisionsView, useDecisions } from "./decisions";
 import { ItemsView, useItems } from "./items";
-import { countBadge, unreadBadge } from "./mail-format";
 import { MailboxView, useMail } from "./mailbox";
+import { panelLayout, panelMemory, panelTabs, toggleBadge, type PanelTab } from "./panel";
 
 const SESSION_KEY = ["assistant", "session"];
+const PANEL_WIDTH = 380;
 
 /** AgentChat comes from the fork; other hosts lack it and get a button that opens the conversation instead. */
 const AgentChat = (hostUi as { AgentChat?: ComponentType<{ agentId: string }> }).AgentChat;
-
-type Tab = "chat" | "mailbox" | "decisions" | "items";
 
 export function AssistantScreen(props: PluginScreenProps) {
   const { theme, layout } = props;
   // Screens get `navigation` on hosts that provide it; the link is inert without it.
   const openAgent = props.navigation?.openAgent;
-  const [tab, setTab] = useState<Tab>("chat");
+  const [open, setOpenState] = useState(panelMemory.open);
+  const [tab, setTabState] = useState<PanelTab>(panelMemory.tab);
+  const setOpen = (value: boolean) => {
+    panelMemory.open = value;
+    setOpenState(value);
+  };
+  const setTab = (value: PanelTab) => {
+    panelMemory.tab = value;
+    setTabState(value);
+  };
   const mail = useMail();
   const mails = mail.data?.mails ?? [];
   const decisions = useDecisions().data?.decisions ?? [];
-  const openDecisions = decisions.filter((d) => !d.answer).length;
   const items = useItems().data?.items ?? [];
-  const openItems = items.filter((i) => !i.closed).length;
+  const counts = {
+    unreadMail: mails.filter((m) => !m.read).length,
+    openDecisions: decisions.filter((d) => !d.answer).length,
+    openItems: items.filter((i) => !i.closed).length,
+  };
   const ensure = useRpc(ensureRpc);
   const reset = useRpc(resetRpc);
   const queryClient = useQueryClient();
@@ -43,7 +55,8 @@ export function AssistantScreen(props: PluginScreenProps) {
       bar: {
         flexDirection: "row" as const,
         alignItems: "center" as const,
-        justifyContent: "flex-start" as const,
+        justifyContent: "flex-end" as const,
+        gap: 8,
         paddingHorizontal: layout.compact ? 12 : 16,
         paddingVertical: 6,
       },
@@ -62,58 +75,73 @@ export function AssistantScreen(props: PluginScreenProps) {
   );
 
   const error = session.error ?? restart.error;
+  const mode = panelLayout(layout.compact, open);
+  const badge = toggleBadge(counts);
+
+  const chat = session.data && AgentChat ? (
+    <AgentChat key={session.data.agentId} agentId={session.data.agentId} />
+  ) : session.data ? (
+    <View style={styles.chat}>
+      <Text style={styles.note}>The Assistant is a regular agent. Open its conversation to talk to it; mail, decisions and open items are in the panel on the right.</Text>
+      <Pressable
+        accessibilityRole="button"
+        disabled={!openAgent}
+        onPress={() => openAgent?.({ agentId: session.data!.agentId })}
+        style={[styles.button, { alignSelf: "flex-start", marginHorizontal: 16, opacity: openAgent ? 1 : 0.5 }]}
+      >
+        <Text style={styles.buttonText}>Open the Assistant conversation</Text>
+      </Pressable>
+    </View>
+  ) : error ? (
+    <Text style={styles.error}>Assistant could not start: {error.message}</Text>
+  ) : (
+    <Text style={styles.note}>Starting Assistant…</Text>
+  );
+
+  const panel = (
+    <View style={{ width: mode === "side" ? PANEL_WIDTH : undefined, flex: mode === "side" ? undefined : 1, borderLeftWidth: mode === "side" ? 1 : 0, borderLeftColor: theme.colors.border }}>
+      <View style={{ flexDirection: "row", paddingHorizontal: 12, paddingVertical: 6, gap: 6, flexWrap: "wrap" }}>
+        {panelTabs(counts).map((t) => (
+          <Pressable key={t.id} accessibilityRole="tab" onPress={() => setTab(t.id)} style={[styles.button, { opacity: tab === t.id ? 1 : 0.6 }]}>
+            <Text style={styles.buttonText}>
+              {t.label}
+              {t.badge ? ` (${t.badge})` : ""}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+      <View style={{ flex: 1 }}>
+        {tab === "mailbox" ? (
+          <MailboxView theme={theme} mails={mails} availability={mail.data?.availability} openAgent={openAgent} />
+        ) : tab === "decisions" ? (
+          <DecisionsView theme={theme} decisions={decisions} />
+        ) : (
+          <ItemsView theme={theme} items={items} />
+        )}
+      </View>
+    </View>
+  );
+
   return (
     <View style={styles.screen}>
       <View style={styles.bar}>
-        {(["chat", "mailbox", "decisions", "items"] as const).map((t) => {
-          const badge = t === "mailbox" ? unreadBadge(mails) : t === "decisions" ? countBadge(openDecisions) : t === "items" ? countBadge(openItems) : "";
-          return (
-            <Pressable key={t} accessibilityRole="tab" onPress={() => setTab(t)} style={[styles.button, { marginRight: 6, opacity: tab === t ? 1 : 0.6 }]}>
-              <Text style={styles.buttonText}>
-                {t === "chat" ? "Chat" : t === "mailbox" ? "Mailbox" : t === "decisions" ? "Decisions" : "Open items"}
-                {badge ? ` (${badge})` : ""}
-              </Text>
-            </Pressable>
-          );
-        })}
-        <View style={{ flex: 1 }} />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="New session"
-          disabled={restart.isPending}
-          onPress={() => restart.mutate()}
-          style={styles.button}
-        >
+        <Pressable accessibilityRole="button" accessibilityLabel="New session" disabled={restart.isPending} onPress={() => restart.mutate()} style={styles.button}>
           <Text style={styles.buttonText}>{restart.isPending ? "Starting…" : "New session"}</Text>
         </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={open ? "Hide the side panel" : "Show the side panel"}
+          onPress={() => setOpen(!open)}
+          style={[styles.button, { flexDirection: "row", alignItems: "center", gap: 6, opacity: open ? 1 : 0.7 }]}
+        >
+          <Icon name={open ? "PanelRightClose" : "PanelRight"} size={16} color={theme.colors.foreground} />
+          {badge && !open ? <DecisionsBadge text={badge} /> : null}
+        </Pressable>
       </View>
-      {tab === "mailbox" ? (
-        <MailboxView theme={theme} mails={mails} availability={mail.data?.availability} openAgent={openAgent} />
-      ) : tab === "decisions" ? (
-        <DecisionsView theme={theme} decisions={decisions} />
-      ) : tab === "items" ? (
-        <ItemsView theme={theme} items={items} />
-      ) : session.data && AgentChat ? (
-        <AgentChat key={session.data.agentId} agentId={session.data.agentId} />
-      ) : session.data ? (
-        <View style={styles.chat}>
-          <Text style={styles.note}>
-            The Assistant is a regular agent. Open its conversation to talk to it; mail, decisions and open items are in the other tabs.
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            disabled={!openAgent}
-            onPress={() => openAgent?.({ agentId: session.data!.agentId })}
-            style={[styles.button, { alignSelf: "flex-start", marginHorizontal: 16, opacity: openAgent ? 1 : 0.5 }]}
-          >
-            <Text style={styles.buttonText}>Open the Assistant conversation</Text>
-          </Pressable>
-        </View>
-      ) : error ? (
-        <Text style={styles.error}>Assistant could not start: {error.message}</Text>
-      ) : (
-        <Text style={styles.note}>Starting Assistant…</Text>
-      )}
+      <View style={{ flex: 1, flexDirection: "row" }}>
+        {mode === "full" ? null : <View style={{ flex: 1 }}>{chat}</View>}
+        {mode === "hidden" ? null : panel}
+      </View>
     </View>
   );
 }
