@@ -9,6 +9,15 @@ import { decisionAnswerRpc, decisionListRpc } from "../shared/rpc";
 export const DECISIONS_KEY = ["assistant", "decisions"];
 const REFRESH_MS = 10_000;
 
+/** The pending-decisions count shown beside the sidebar row. */
+export function DecisionsBadge({ text }: { text: string }) {
+  return (
+    <View accessibilityLabel={`${text} pending decisions`} style={{ minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, alignItems: "center", justifyContent: "center", backgroundColor: "#d33" }}>
+      <Text style={{ color: "#fff", fontSize: 11, fontWeight: "600" }}>{text}</Text>
+    </View>
+  );
+}
+
 export function useDecisions() {
   const list = useRpc(decisionListRpc);
   return useQuery({ queryKey: DECISIONS_KEY, queryFn: () => list({}), refetchInterval: REFRESH_MS });
