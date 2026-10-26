@@ -55,3 +55,15 @@ describe("mailHint", () => {
     expect(mailHint("outdated")).toBe("Agents Mail needs an update");
   });
 });
+
+import { isOpen, decisionStatus, type Decision } from "../shared/decision";
+
+describe("cancelled decisions are not open", () => {
+  const base: Decision = { id: "1", question: "q", options: ["a", "b"], askedAt: 1, deliveredAt: null, cancelledAt: null, answer: null };
+  it("counts only decisions that are neither answered nor cancelled", () => {
+    expect(isOpen(base)).toBe(true);
+    expect(isOpen({ ...base, cancelledAt: 5 })).toBe(false);
+    expect(isOpen({ ...base, answer: { text: "a", other: false, at: 2, source: "tab" } })).toBe(false);
+    expect(decisionStatus({ ...base, cancelledAt: 5 })).toBe("cancelled");
+  });
+});

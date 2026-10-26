@@ -1,9 +1,9 @@
 import { join } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
-import { decisionAnswerRpc, currentRpc, shimsRpc, decisionListRpc, ensureRpc, itemListRpc, mailListRpc, mailReadRpc, resetRpc } from "./shared/rpc";
+import { decisionCancelRpc, decisionAnswerRpc, currentRpc, shimsRpc, decisionListRpc, ensureRpc, itemListRpc, mailListRpc, mailReadRpc, resetRpc } from "./shared/rpc";
 import { DEFAULT_PROVIDER, assistantSettings, settingsSchema } from "./shared/settings";
 import { MailHttp } from "./server/http";
-import { DecisionStore, decisionNudge } from "./server/decisions";
+import { DecisionStore, cancelNudge, decisionNudge } from "./server/decisions";
 import { ItemStore } from "./server/items";
 import { AgentsMailClient, AgentsMailError } from "./server/agentsmail";
 import { migrateLegacyMail } from "./server/migrate";
@@ -86,7 +86,8 @@ export default function contribute(server: PluginServerContext) {
     },
     decisionText: (id) => {
       const decision = decisions.list().find((d) => d.id === id);
-      return decision?.answer ? decisionNudge(decision) : null;
+      if (!decision) return null;
+      return decision.cancelledAt !== null ? cancelNudge(decision) : decision.answer ? decisionNudge(decision) : null;
     },
     send: nudge,
   });
@@ -178,6 +179,12 @@ export default function contribute(server: PluginServerContext) {
   });
   server.handle(itemListRpc, async () => ({ items: items.list() }));
   server.handle(decisionListRpc, async () => ({ decisions: decisions.list() }));
+  server.handle(decisionCancelRpc, async (input, ctx) => {
+    capture(ctx);
+    const decision = decisions.cancel(input.id);
+    delivery.enqueueDecision(decision.id);
+    return { decision };
+  });
   server.handle(decisionAnswerRpc, async (input, ctx) => {
     capture(ctx);
     const decision = decisions.answer(input.id, input.answer, input.other);
