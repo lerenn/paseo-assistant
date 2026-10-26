@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import type { Decision } from "../shared/decision";
 import { decisionAnswerRpc, decisionListRpc } from "../shared/rpc";
+import { cardStyle } from "./card";
 
 export const DECISIONS_KEY = ["assistant", "decisions"];
 const REFRESH_MS = 10_000;
@@ -28,7 +29,7 @@ function OpenDecision({ theme, decision, busy, onAnswer }: { theme: PluginTheme;
   const [text, setText] = useState("");
   const button = { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: theme.colors.surface2 };
   return (
-    <View style={{ paddingHorizontal: 16, paddingVertical: 12, gap: 8 }}>
+    <View style={cardStyle(theme)}>
       <Text style={{ color: theme.colors.foreground, fontSize: 14, fontWeight: "600" }}>{decision.question}</Text>
       {decision.options.map((option, i) => (
         <Pressable key={option} accessibilityRole="button" disabled={busy} onPress={() => onAnswer(option, false)} style={button}>
@@ -88,7 +89,7 @@ export function DecisionsView({ theme, decisions }: { theme: PluginTheme; decisi
           </Pressable>
           {showAnswered
             ? answered.map((d) => (
-                <View key={d.id} style={{ paddingHorizontal: 16, paddingVertical: 8, gap: 2, opacity: 0.7 }}>
+                <View key={d.id} style={[cardStyle(theme, { muted: true }), { gap: 2 }]}>
                   <Text style={{ color: theme.colors.foreground, fontSize: 13 }}>{d.question}</Text>
                   <Text style={{ color: theme.colors.foregroundMuted, fontSize: 12 }}>
                     {d.answer!.text} · {d.answer!.source === "chat" ? "answered in chat · " : ""}{new Date(d.answer!.at).toLocaleString()}

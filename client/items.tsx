@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Linking, Pressable, ScrollView, Text, View } from "react-native";
 import type { Item } from "../shared/item";
 import { itemListRpc } from "../shared/rpc";
+import { cardStyle } from "./card";
 
 export const ITEMS_KEY = ["assistant", "items"];
 const REFRESH_MS = 10_000;
@@ -16,7 +17,7 @@ export function useItems() {
 
 function ItemRow({ theme, item }: { theme: PluginTheme; item: Item }) {
   return (
-    <View style={{ paddingHorizontal: 16, paddingVertical: 8, gap: 2, opacity: item.closed ? 0.7 : 1 }}>
+    <View style={[cardStyle(theme, { muted: !!item.closed }), { gap: 2 }]}>
       <Text style={{ color: theme.colors.foreground, fontSize: 14, fontWeight: item.closed ? "400" : "600" }}>{item.title}</Text>
       {item.detail ? <Text style={{ color: theme.colors.foregroundMuted, fontSize: 13 }}>{item.detail}</Text> : null}
       <View style={{ flexDirection: "row", gap: 12 }}>
