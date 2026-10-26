@@ -10,7 +10,7 @@ import { ensureRpc, resetRpc, uiGetRpc, uiSetRpc } from "../shared/rpc";
 import { DecisionsBadge, DecisionsView, useDecisions } from "./decisions";
 import { ItemsView, useItems } from "./items";
 import { MailboxView, useMail } from "./mailbox";
-import { DEFAULT_PANEL_WIDTH, clampPanelWidth, effectiveTab, itemCounts, mailHint, panelLayout, panelMemory, panelTabs, toggleBadge, widthAfterDrag, type PanelTab } from "./panel";
+import { DEFAULT_PANEL_WIDTH, DEFAULT_TAB, clampPanelWidth, effectiveTab, itemCounts, mailHint, panelLayout, panelMemory, panelTabs, toggleBadge, widthAfterDrag, type PanelTab } from "./panel";
 
 const SESSION_KEY = ["assistant", "session"];
 
@@ -22,15 +22,12 @@ export function AssistantScreen(props: PluginScreenProps) {
   // Screens get `navigation` on hosts that provide it; the link is inert without it.
   const openAgent = props.navigation?.openAgent;
   const [open, setOpenState] = useState(panelMemory.open);
-  const [wantedTab, setTabState] = useState<PanelTab>(panelMemory.tab);
+  const [wantedTab, setTabState] = useState<PanelTab>(DEFAULT_TAB);
   const setOpen = (value: boolean) => {
     panelMemory.open = value;
     setOpenState(value);
   };
-  const setTab = (value: PanelTab) => {
-    panelMemory.tab = value;
-    setTabState(value);
-  };
+  const setTab = (value: PanelTab) => setTabState(value);
   // The panel's width: dragged live, saved on release, restored from the daemon.
   const { width: windowWidth } = useWindowDimensions();
   const getUi = useRpc(uiGetRpc);
@@ -113,7 +110,7 @@ export function AssistantScreen(props: PluginScreenProps) {
     <AgentChat key={session.data.agentId} agentId={session.data.agentId} />
   ) : session.data ? (
     <View style={styles.chat}>
-      <Text style={styles.note}>The Assistant is a regular agent. Open its conversation to talk to it; mail, decisions and open items are in the panel on the right.</Text>
+      <Text style={styles.note}>The Assistant is a regular agent. Open its conversation to talk to it; current tasks, your decisions, your actions and the mailbox are in the panel on the right.</Text>
       <Pressable
         accessibilityRole="button"
         disabled={!openAgent}

@@ -24,19 +24,22 @@ export const mailHint = (availability: "ok" | "not-installed" | "unreachable" | 
  */
 export function panelTabs(c: PanelCounts, mailAvailable = true, hint: string = MAIL_HINT): { id: PanelTab; label: string; badge: string; disabled: boolean; hint: string | null }[] {
   return [
+    { id: "items", label: "Current Tasks", badge: countBadge(c.openItems), disabled: false, hint: null },
+    { id: "decisions", label: "Your Decisions", badge: countBadge(c.openDecisions), disabled: false, hint: null },
+    { id: "actions", label: "Your Actions", badge: countBadge(c.yourActions), disabled: false, hint: null },
     { id: "mailbox", label: "Mailbox", badge: mailAvailable ? countBadge(c.unreadMail) : "", disabled: !mailAvailable, hint: mailAvailable ? null : hint },
-    { id: "decisions", label: "Decisions", badge: countBadge(c.openDecisions), disabled: false, hint: null },
-    { id: "actions", label: "Your actions", badge: countBadge(c.yourActions), disabled: false, hint: null },
-    { id: "items", label: "Open items", badge: countBadge(c.openItems), disabled: false, hint: null },
   ];
 }
 
-/** The tab to show: the wanted one, unless it is disabled, then Decisions. */
+/** The tab the panel opens on, always: Current Tasks. Nothing switches tabs by itself. */
+export const DEFAULT_TAB: PanelTab = "items";
+
+/** The tab to show: the wanted one, unless it is the disabled Mailbox, then the default. */
 export function effectiveTab(wanted: PanelTab, mailAvailable: boolean): PanelTab {
-  return wanted === "mailbox" && !mailAvailable ? "decisions" : wanted;
+  return wanted === "mailbox" && !mailAvailable ? DEFAULT_TAB : wanted;
 }
 
-/** Open (not closed) items by owner: `human` for Your actions, `agent` (also items saved before owners existed) for Open items. */
+/** Open (not closed) items by owner: `human` for Your actions, `agent` (also items saved before owners existed) for Current Tasks. */
 export function itemCounts(items: readonly Pick<Item, "owner" | "closed">[]): { yourActions: number; openItems: number } {
   const open = items.filter((i) => !i.closed);
   return { yourActions: open.filter((i) => i.owner === "human").length, openItems: open.filter((i) => i.owner !== "human").length };
@@ -68,5 +71,5 @@ export function clampPanelWidth(width: number, available: number): number {
 /** Dragging the left edge left (negative dx) widens the panel; right narrows it. */
 export const widthAfterDrag = (startWidth: number, dx: number, available: number): number => clampPanelWidth(startWidth - dx, available);
 
-/** Kept for the life of the page, so switching screens and coming back finds the panel as it was. */
-export const panelMemory: { open: boolean; tab: PanelTab } = { open: true, tab: "mailbox" };
+/** Whether the panel is open is kept for the life of the page; the tab is not: the panel always opens on Current Tasks. */
+export const panelMemory: { open: boolean } = { open: true };

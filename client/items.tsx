@@ -35,7 +35,7 @@ function ItemRow({ theme, item, rich }: { theme: PluginTheme; item: Item; rich?:
   );
 }
 
-/** The open items of one owner: `agent` for the Open items tab, `human` for Your actions (steps rendered as markdown). */
+/** The open items of one owner: `agent` for the Current Tasks tab, `human` for Your Actions (steps rendered as markdown). */
 export function ItemsView({ theme, items, owner = "agent" }: { theme: PluginTheme; items: readonly Item[]; owner?: ItemOwner }) {
   const [showClosed, setShowClosed] = useState(false);
   const mine = items.filter((i) => i.owner === owner);
@@ -43,7 +43,7 @@ export function ItemsView({ theme, items, owner = "agent" }: { theme: PluginThem
   const closed = mine.filter((i) => i.closed);
   return (
     <ScrollView>
-      {open.length === 0 ? <Text style={{ color: theme.colors.foregroundMuted, padding: 16 }}>{owner === "human" ? "Nothing for you to do. The Assistant lists here what you have to do, with the steps." : "Nothing open. The Assistant lists here what you are waiting on."}</Text> : null}
+      {open.length === 0 ? <Text style={{ color: theme.colors.foregroundMuted, padding: 16 }}>{owner === "human" ? "Nothing for you to do. The Assistant lists here what you have to do, with the steps." : "Nothing in progress. The Assistant lists here what it is working on and what you are waiting on."}</Text> : null}
       {open.map((i) => (
         <ItemRow key={i.id} theme={theme} item={i} rich={owner === "human"} />
       ))}
