@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { findById } from "../shared/id";
 import { isWebLink, itemSchema, type Item, type ItemOwner } from "../shared/item";
 
 const MAX_ITEMS = 500;
@@ -38,10 +39,9 @@ export class ItemStore {
     return link;
   }
 
-  private find(id: string): Item {
-    const item = this.items.find((i) => i.id === id);
-    if (!item) throw new Error("Unknown item");
-    return item;
+  /** An item by its full id or a unique prefix of 4+ characters (the short id on its card). */
+  private find(ref: string): Item {
+    return findById(this.items, ref, "item");
   }
 
   add(input: { title: string; detail?: string; link?: string; owner?: ItemOwner }): Item {

@@ -10,7 +10,7 @@ const theme = { colors: { surface2: "#222", foregroundMuted: "#999", foreground:
 
 describe("CardHeader (layout of every decision card)", () => {
   it("is one row: the id chip on the left and the ×/Undo/state on the right, space between", async () => {
-    const { CardHeader } = await import("./decisions");
+    const { CardHeader } = await import("./card-header");
     const { IdChip } = await import("./id-chip");
     const right = { type: "Text", props: { children: "×" } } as never;
     const el = CardHeader({ theme, id: "b1a3a95d-0000-4000-8000-000000000001", right }) as { props: { style: Record<string, unknown>; children: unknown[] } };
@@ -22,7 +22,7 @@ describe("CardHeader (layout of every decision card)", () => {
   });
 
   it("keeps the chip alone on the left when there is nothing on the right", async () => {
-    const { CardHeader } = await import("./decisions");
+    const { CardHeader } = await import("./card-header");
     const el = CardHeader({ theme, id: "abcd1234-x" }) as { props: { children: unknown[] } };
     expect(el.props.children[1]).toBeNull();
   });
