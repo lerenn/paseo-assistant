@@ -4,6 +4,7 @@ import { decisionCancelRpc, decisionAnswerRpc, currentRpc, shimsRpc, decisionLis
 import { DEFAULT_PROVIDER, assistantSettings, settingsSchema } from "./shared/settings";
 import { MailHttp } from "./server/http";
 import { DecisionStore, cancelNudge, decisionNudge } from "./server/decisions";
+import { noteForTurn } from "./server/ask-check";
 import { ItemStore } from "./server/items";
 import { AgentsMailClient, AgentsMailError } from "./server/agentsmail";
 import { ShimUsageStore, describeReport, shimReport } from "./server/shims";
@@ -189,11 +190,44 @@ export default function contribute(server: PluginServerContext) {
     const capability = request.env[CAPABILITY_ENV];
     if (capability) tokens.bind(capability, request.agentId);
   });
-  // The Assistant just finished a turn: deliver what waited for it.
-  const removeTurnEnded = server.on("agent.turn_ended", ({ agent }, ctx) => {
+  // A note for the Assistant's next prompt: "you asked the user in chat". Never blocks or changes a reply.
+  let pendingNote: string | null = null;
+  let promptHookLive = false;
+  const checkChatQuestion = async (agentId: string) => {
+    const agent = paseo?.agents.ref(agentId) as unknown as { timeline: { refetch(o: unknown): Promise<unknown> } } | undefined;
+    if (!agent) return;
+    const note = noteForTurn(await agent.timeline.refetch({ direction: "tail", limit: 60 }));
+    if (!note || pendingNote) return;
+    if (promptHookLive) {
+      pendingNote = note;
+      return;
+    }
+    // No prompt hook on this host: a short steered note, only to an idle Assistant, so nothing running is interrupted.
+    if (statusOf(await paseo?.agents.ref(agentId).refresh()) === "idle") await nudge(note);
+  };
+  // The Assistant just finished a turn: deliver what waited for it, and check what it said.
+  const removeTurnEnded = server.on("agent.turn_ended", ({ agent, outcome }, ctx) => {
     capture(ctx);
-    if (agent.id === session.currentAgentId()) delivery.poke();
+    if (agent.id !== session.currentAgentId()) return;
+    delivery.poke();
+    if (outcome.kind === "completed") void checkChatQuestion(agent.id).catch((error) => console.error("assistant: chat question check failed", error));
   });
+  // Fork hook (feature flag pluginPromptHook): put the note in front of the Assistant's next prompt, once.
+  let removePrompt: () => void = () => {};
+  try {
+    const before = server.before as unknown as (name: string, handler: (input: { request: { agentId: string; prepend?: string } }, ctx: unknown) => unknown) => (() => void) | undefined;
+    removePrompt =
+      before.call(server, "agent.prompt", ({ request }, ctx) => {
+        capture(ctx as { paseo: unknown });
+        promptHookLive = true;
+        if (!pendingNote || request?.agentId !== session.currentAgentId()) return;
+        const note = pendingNote;
+        pendingNote = null;
+        return { ...request, prepend: request.prepend ? `${request.prepend}\n\n${note}` : note };
+      }) ?? (() => {});
+  } catch {
+    // No agent.prompt hook on this host: the steered note above is used instead.
+  }
   const removeArchived = server.on("agent.archived", ({ agent }, ctx) => {
     capture(ctx);
     tokens.revokeAgent(agent.id);
@@ -206,6 +240,7 @@ export default function contribute(server: PluginServerContext) {
     removeOpen();
     removeArchived();
     removeTurnEnded();
+    removePrompt();
     unsubscribeSettings();
     clearInterval(shimTimer);
     delivery.stop();
