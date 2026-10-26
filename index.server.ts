@@ -1,9 +1,10 @@
 import { join } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
-import { decisionAnswerRpc, decisionListRpc, ensureRpc, mailListRpc, mailReadRpc, resetRpc } from "./shared/rpc";
+import { decisionAnswerRpc, decisionListRpc, ensureRpc, itemListRpc, mailListRpc, mailReadRpc, resetRpc } from "./shared/rpc";
 import { DEFAULT_PROVIDER, assistantSettings, settingsSchema } from "./shared/settings";
 import { MailHttp } from "./server/http";
 import { DecisionStore, decisionNudge } from "./server/decisions";
+import { ItemStore } from "./server/items";
 import { AgentsMailClient, AgentsMailError } from "./server/agentsmail";
 import { migrateLegacyMail } from "./server/migrate";
 import { Delivery, PendingDeliveries } from "./server/delivery";
@@ -41,6 +42,7 @@ export default function contribute(server: PluginServerContext) {
     }
   };
   void migrate();
+  const items = new ItemStore(process.env.ASSISTANT_ITEMS ?? join(dataDir, "items.json"));
   const decisions = new DecisionStore(process.env.ASSISTANT_DECISIONS ?? join(dataDir, "decisions.json"));
   const tokens = new CapabilityStore(process.env.ASSISTANT_CAPABILITIES ?? join(dataDir, "capabilities.json"));
 
@@ -94,6 +96,7 @@ export default function contribute(server: PluginServerContext) {
     context: () => ({
       agentsMail,
       decisions,
+      items,
       nameOf: async (agentId, hint) => {
         if (hint) return hint;
         try {
@@ -137,6 +140,7 @@ export default function contribute(server: PluginServerContext) {
       throw error;
     }
   });
+  server.handle(itemListRpc, async () => ({ items: items.list() }));
   server.handle(decisionListRpc, async () => ({ decisions: decisions.list() }));
   server.handle(decisionAnswerRpc, async (input, ctx) => {
     capture(ctx);

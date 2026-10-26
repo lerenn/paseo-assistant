@@ -54,3 +54,12 @@ export const decisionAnswerRpc = defineRpc({
   input: z.object({ id: z.string(), answer: z.string().min(1).max(5000), other: z.boolean() }),
   output: z.object({ decision: decisionSchema }),
 });
+
+import { itemSchema } from "./item";
+
+/** Open items first (oldest first), then closed ones (newest first). */
+export const itemListRpc = defineRpc({
+  name: "assistant.item.list",
+  input: z.object({}),
+  output: z.object({ items: z.array(itemSchema) }),
+});

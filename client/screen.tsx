@@ -6,6 +6,7 @@ import { useMemo, useState, type ComponentType } from "react";
 import { Pressable, Text, View } from "react-native";
 import { ensureRpc, resetRpc } from "../shared/rpc";
 import { DecisionsView, useDecisions } from "./decisions";
+import { ItemsView, useItems } from "./items";
 import { countBadge, unreadBadge } from "./mail-format";
 import { MailboxView, useMail } from "./mailbox";
 
@@ -14,7 +15,7 @@ const SESSION_KEY = ["assistant", "session"];
 /** AgentChat comes from the fork; other hosts lack it and get a button that opens the conversation instead. */
 const AgentChat = (hostUi as { AgentChat?: ComponentType<{ agentId: string }> }).AgentChat;
 
-type Tab = "chat" | "mailbox" | "decisions";
+type Tab = "chat" | "mailbox" | "decisions" | "items";
 
 export function AssistantScreen(props: PluginScreenProps) {
   const { theme, layout } = props;
@@ -25,6 +26,8 @@ export function AssistantScreen(props: PluginScreenProps) {
   const mails = mail.data?.mails ?? [];
   const decisions = useDecisions().data?.decisions ?? [];
   const openDecisions = decisions.filter((d) => !d.answer).length;
+  const items = useItems().data?.items ?? [];
+  const openItems = items.filter((i) => !i.closed).length;
   const ensure = useRpc(ensureRpc);
   const reset = useRpc(resetRpc);
   const queryClient = useQueryClient();
@@ -62,12 +65,12 @@ export function AssistantScreen(props: PluginScreenProps) {
   return (
     <View style={styles.screen}>
       <View style={styles.bar}>
-        {(["chat", "mailbox", "decisions"] as const).map((t) => {
-          const badge = t === "mailbox" ? unreadBadge(mails) : t === "decisions" ? countBadge(openDecisions) : "";
+        {(["chat", "mailbox", "decisions", "items"] as const).map((t) => {
+          const badge = t === "mailbox" ? unreadBadge(mails) : t === "decisions" ? countBadge(openDecisions) : t === "items" ? countBadge(openItems) : "";
           return (
             <Pressable key={t} accessibilityRole="tab" onPress={() => setTab(t)} style={[styles.button, { marginRight: 6, opacity: tab === t ? 1 : 0.6 }]}>
               <Text style={styles.buttonText}>
-                {t === "chat" ? "Chat" : t === "mailbox" ? "Mailbox" : "Decisions"}
+                {t === "chat" ? "Chat" : t === "mailbox" ? "Mailbox" : t === "decisions" ? "Decisions" : "Open items"}
                 {badge ? ` (${badge})` : ""}
               </Text>
             </Pressable>
@@ -88,12 +91,14 @@ export function AssistantScreen(props: PluginScreenProps) {
         <MailboxView theme={theme} mails={mails} availability={mail.data?.availability} openAgent={openAgent} />
       ) : tab === "decisions" ? (
         <DecisionsView theme={theme} decisions={decisions} />
+      ) : tab === "items" ? (
+        <ItemsView theme={theme} items={items} />
       ) : session.data && AgentChat ? (
         <AgentChat key={session.data.agentId} agentId={session.data.agentId} />
       ) : session.data ? (
         <View style={styles.chat}>
           <Text style={styles.note}>
-            The Assistant is a regular agent. Open its conversation to talk to it; mail and decisions are in the other tabs.
+            The Assistant is a regular agent. Open its conversation to talk to it; mail, decisions and open items are in the other tabs.
           </Text>
           <Pressable
             accessibilityRole="button"

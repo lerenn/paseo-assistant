@@ -2,6 +2,7 @@ import { z } from "zod";
 import { mailKindSchema } from "../shared/mail";
 import { MAX_OPTIONS, MIN_OPTIONS } from "../shared/decision";
 import type { DecisionStore } from "./decisions";
+import type { ItemStore } from "./items";
 import { AgentsMailError, type AgentsMailClient } from "./agentsmail";
 import type { Capability, Role } from "./tokens";
 
@@ -10,6 +11,7 @@ export interface ToolContext {
   /** The Agents Mail plugin, where the mail lives now. */
   agentsMail: AgentsMailClient;
   decisions: DecisionStore;
+  items: ItemStore;
   /** Best-effort title of an agent; falls back to its id. */
   nameOf(agentId: string, hint?: string): Promise<string>;
 }
@@ -98,6 +100,38 @@ export const mailTools: ToolDef[] = [
     async run(input: { id: string; answer: string }, ctx) {
       const decision = ctx.decisions.close(input.id, input.answer);
       return { id: decision.id, answer: decision.answer };
+    },
+  },
+  {
+    name: "assistant_item_add",
+    description:
+      "Track something the human is waiting on but does not have to decide, for example \"waiting for the cluster rework PR 3\" or \"pin PR pending restart\". It shows in the Open items tab. For a real choice use assistant_decision_add instead. Title is one line; detail and an http(s) link are optional.",
+    roles: ["assistant"],
+    input: z.object({ title: z.string().min(1).max(200), detail: z.string().max(2000).optional(), link: z.string().max(500).optional() }),
+    async run(input: { title: string; detail?: string; link?: string }, ctx) {
+      const item = ctx.items.add(input);
+      return { id: item.id };
+    },
+  },
+  {
+    name: "assistant_item_update",
+    description: "Change the title, detail or link of an open item (an empty detail or link clears it). Fails on an unknown or closed id.",
+    roles: ["assistant"],
+    input: z.object({ id: z.string().min(1), title: z.string().min(1).max(200).optional(), detail: z.string().max(2000).optional(), link: z.string().max(500).optional() }),
+    async run(input: { id: string; title?: string; detail?: string; link?: string }, ctx) {
+      const { id, ...changes } = input;
+      const item = ctx.items.update(id, changes);
+      return { id: item.id, title: item.title };
+    },
+  },
+  {
+    name: "assistant_item_close",
+    description: "Close an open item when what the human was waiting for happened. An optional note says how it ended. Fails on an unknown or already closed id.",
+    roles: ["assistant"],
+    input: z.object({ id: z.string().min(1), note: z.string().max(1000).optional() }),
+    async run(input: { id: string; note?: string }, ctx) {
+      const item = ctx.items.close(input.id, input.note);
+      return { id: item.id, closed: true };
     },
   },
 ];

@@ -122,6 +122,8 @@ describe("AssistantSession", () => {
     expect(sent).toHaveLength(1);
     expect(ASSISTANT_PROMPT).toContain("mail_list");
     expect(ALLOWED_TOOLS).toContain("mcp__agents-mail__mail_list");
+    expect(ALLOWED_TOOLS).toContain("mcp__assistant__assistant_item_add");
+    expect(ASSISTANT_PROMPT).toContain("Open items");
     expect(ALLOWED_TOOLS).toContain("mcp__assistant__assistant_mailbox");
     expect(ALLOWED_TOOLS).toContain("mcp__assistant__assistant_decision_add");
     expect(ASSISTANT_PROMPT).toContain("assistant_decision_add");

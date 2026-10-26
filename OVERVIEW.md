@@ -1,4 +1,4 @@
-Assistant is a first mate for the other agents on your Paseo daemon. It is one long-lived conversation that watches your agents, passes on their questions and summarises what needs you. A sidebar entry opens its screen, with Chat, Mailbox and Decisions tabs.
+Assistant is a first mate for the other agents on your Paseo daemon. It is one long-lived conversation that watches your agents, passes on their questions and summarises what needs you. A sidebar entry opens its screen, with Chat, Mailbox, Decisions and Open items tabs.
 
 ## How it works
 
@@ -27,3 +27,7 @@ Without Agents Mail the tab says so ("Install the Agents Mail plugin to see agen
 ## Decisions
 
 When something needs your choice, the Assistant queues it with `assistant_decision_add(question, options, recommended)` (2 to 4 options, the recommended one shown first and marked) instead of waiting on you in chat. The Decisions tab shows a count badge and lists the open ones; pick an option or choose "Other…" to type your own answer. The answer is queued (on disk) and delivered to the Assistant as one message, together with any new-mail wake, once it is idle: a running turn is never steered or interrupted. The message carries the decision id, question and answer, so it can act. Answered decisions stay under a collapsed "Answered" section.
+
+## Open items
+
+For things you are waiting on but do not have to decide ("waiting for the cluster rework PR 3", "pin PR pending restart"), the Assistant keeps a list with `assistant_item_add(title, detail?, link?)`, `assistant_item_update(id, ...)` and `assistant_item_close(id, note?)`. The Open items tab shows the open ones with a count (the sidebar badge stays decisions-only); closed items stay under a collapsed "Closed" section. Decisions are for real choices only.
