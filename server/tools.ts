@@ -27,14 +27,14 @@ export interface ToolDef {
 const mailInput = z.object({
   subject: z.string().min(1).max(200).describe("One line."),
   body: z.string().max(10_000).default("").describe("A few lines."),
-  kind: mailKindSchema.describe("start | blocked | needs_user | pr | done"),
+  kind: mailKindSchema.describe("start | blocked | pr | done"),
 });
 
 export const mailTools: ToolDef[] = [
   {
     name: "assistant_mail",
     description:
-      "Mail the Assistant a status update. Only at milestones: start, blocked, needs the user, PR opened or merged, done; not every step. The sender is you.",
+      "Mail the Assistant a status update. Only at milestones: start, blocked (stuck), PR opened or merged, done; not every step. The sender is you.",
     roles: ["agent"],
     input: mailInput,
     async run(input: z.output<typeof mailInput>, ctx) {

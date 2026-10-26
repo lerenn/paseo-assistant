@@ -40,13 +40,13 @@ describe("assistant MCP", () => {
     expect(onMail).toHaveBeenCalledOnce();
   });
 
-  it("accepts the legacy needs_louis kind as needs_user", async () => {
+  it("treats the legacy needs_louis and needs_user kinds as blocked", async () => {
     const { mcp, ctx, mailbox } = setup({ role: "agent", agentId: "a1" });
     await call(mcp, ctx, "assistant_mail", { subject: "s", kind: "needs_louis" });
     await call(mcp, ctx, "assistant_mail", { subject: "t", kind: "needs_user" });
-    expect(mailbox.list().map((m) => m.kind)).toEqual(["needs_user", "needs_user"]);
+    expect(mailbox.list().map((m) => m.kind)).toEqual(["blocked", "blocked"]);
     const list: any = await mcp.handle({ jsonrpc: "2.0", id: 1, method: "tools/list" }, ctx);
-    expect(JSON.stringify(list.result.tools)).not.toMatch(/louis/i);
+    expect(JSON.stringify(list.result.tools)).not.toMatch(/louis|needs_user/i);
   });
 
   it("rejects an unknown kind and an agent that is not bound yet", async () => {
