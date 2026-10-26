@@ -62,7 +62,7 @@ const call = (mcp: McpServer, ctx: ToolContext, name: string, args: unknown) =>
 describe("assistant MCP (legacy mail tools are shims over Agents Mail)", () => {
   it("shows agents only assistant_mail and the Assistant the read and decision tools", async () => {
     expect(toolNames("agent")).toEqual(["assistant_mail"]);
-    expect(toolNames("assistant")).toEqual(["assistant_mailbox", "assistant_mark_read", "assistant_decision_add", "assistant_decision_close", "assistant_item_add", "assistant_item_update", "assistant_item_close"]);
+    expect(toolNames("assistant")).toEqual(["assistant_mailbox", "assistant_mark_read", "assistant_decision_add", "assistant_decision_list", "assistant_decision_close", "assistant_item_add", "assistant_item_update", "assistant_item_close"]);
   });
 
   it("forwards assistant_mail with the caller identity, not anything the agent claims", async () => {

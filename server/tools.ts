@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { mailKindSchema } from "../shared/mail";
-import { MAX_OPTIONS, MIN_OPTIONS } from "../shared/decision";
+import { DECISION_STATUSES, MAX_OPTIONS, MIN_OPTIONS, decisionStatus } from "../shared/decision";
 import type { DecisionStore } from "./decisions";
 import type { ItemStore } from "./items";
 import { AgentsMailError, type AgentsMailClient } from "./agentsmail";
@@ -89,6 +89,44 @@ export const mailTools: ToolDef[] = [
     async run(input: { question: string; options: string[]; recommended: string }, ctx) {
       const decision = ctx.decisions.add(input);
       return { id: decision.id, options: decision.options };
+    },
+  },
+  {
+    name: "assistant_decision_list",
+    description:
+      "List the decisions you queued, with status: pending (unanswered), answered (answered in the tab, not yet passed to you), delivered (passed to you) or closed (answered in chat). Each has id, question, options, the recommended option (the first), the answer and its source (tab or chat), and timestamps (created, answered, delivered). Filter by status and by created time (since, until: ISO dates or epoch milliseconds). Check it when asked what is waiting and before queueing a decision, to avoid duplicates and catch answers not yet delivered.",
+    roles: ["assistant"],
+    input: z.object({
+      status: z.enum(DECISION_STATUSES).optional(),
+      since: z.union([z.string(), z.number()]).optional(),
+      until: z.union([z.string(), z.number()]).optional(),
+    }),
+    async run(input: { status?: (typeof DECISION_STATUSES)[number]; since?: string | number; until?: string | number }, ctx) {
+      const at = (v: string | number | undefined): number | null => {
+        if (v === undefined) return null;
+        const t = typeof v === "number" ? v : Number.isNaN(Number(v)) ? Date.parse(v) : Number(v);
+        if (Number.isNaN(t)) throw new Error(`Not a date: ${v}`);
+        return t;
+      };
+      const since = at(input.since);
+      const until = at(input.until);
+      const iso = (t: number | null | undefined) => (t == null ? null : new Date(t).toISOString());
+      return ctx.decisions
+        .list()
+        .filter((d) => (!input.status || decisionStatus(d) === input.status) && (since === null || d.askedAt >= since) && (until === null || d.askedAt <= until))
+        .map((d) => ({
+          id: d.id,
+          question: d.question,
+          options: d.options,
+          recommended: d.options[0],
+          status: decisionStatus(d),
+          answer: d.answer?.text ?? null,
+          answerIsFreeText: d.answer?.other ?? null,
+          source: d.answer?.source ?? null,
+          createdAt: iso(d.askedAt),
+          answeredAt: iso(d.answer?.at),
+          deliveredAt: iso(d.deliveredAt),
+        }));
     },
   },
   {

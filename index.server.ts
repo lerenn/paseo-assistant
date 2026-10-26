@@ -7,7 +7,7 @@ import { DecisionStore, decisionNudge } from "./server/decisions";
 import { ItemStore } from "./server/items";
 import { AgentsMailClient, AgentsMailError } from "./server/agentsmail";
 import { migrateLegacyMail } from "./server/migrate";
-import { Delivery, PendingDeliveries } from "./server/delivery";
+import { Delivery, PendingDeliveries, dropStaleOnce, statusOf } from "./server/delivery";
 import { McpServer } from "./server/mcp";
 import { AssistantSession, StateFile, dataDir, type AssistantPaseo } from "./server/session";
 import { CAPABILITY_ENV, CapabilityStore } from "./server/tokens";
@@ -71,14 +71,16 @@ export default function contribute(server: PluginServerContext) {
     await send.call(paseo.agents.ref(assistantId), text, { activeTurnBehavior: "steer" });
   };
 
+  const pendingQueue = new PendingDeliveries(process.env.ASSISTANT_PENDING ?? join(dataDir, "pending-deliveries.json"));
+
   /** New mail and answered decisions reach the Assistant only when it is idle; see Delivery. */
   const delivery = new Delivery({
-    queue: new PendingDeliveries(process.env.ASSISTANT_PENDING ?? join(dataDir, "pending-deliveries.json")),
+    queue: pendingQueue,
+    delivered: (ids) => decisions.markDelivered(ids),
     status: async () => {
       const assistantId = session.currentAgentId();
       if (!assistantId || !paseo) return null;
-      const snapshot = (await paseo.agents.ref(assistantId).refresh()) as { status?: string } | null | undefined;
-      return snapshot?.status ?? null;
+      return statusOf(await paseo.agents.ref(assistantId).refresh());
     },
     decisionText: (id) => {
       const decision = decisions.list().find((d) => d.id === id);
@@ -88,6 +90,12 @@ export default function contribute(server: PluginServerContext) {
   });
 
   // Answers queued before a restart are delivered once the Assistant is reachable and idle.
+  const pendingFile = process.env.ASSISTANT_PENDING ?? join(dataDir, "pending-deliveries.json");
+  const dropped = dropStaleOnce(pendingQueue, `${pendingFile}.cleared-v1`);
+  if (dropped.length) {
+    decisions.markDelivered(dropped);
+    console.log(`assistant: dropped ${dropped.length} stale queued answers (already handled)`);
+  }
   delivery.poke();
 
   const http = new MailHttp({

@@ -9,6 +9,8 @@ export const decisionSchema = z.object({
   /** 2 to 4 options, the recommended one first. The UI adds "Other…" last. */
   options: z.array(z.string()).min(MIN_OPTIONS).max(MAX_OPTIONS),
   askedAt: z.number(),
+  /** When the answer was passed on to the Assistant (answers given in the tab); null until then, and for ones closed in chat. */
+  deliveredAt: z.number().nullable().default(null),
   answer: z
     .object({
       text: z.string(),
@@ -26,4 +28,14 @@ export function orderOptions(options: readonly string[], recommended: string): s
   const index = trimmed.indexOf(recommended.trim());
   if (index < 0) throw new Error(`recommended must be one of the options: ${trimmed.join(" | ")}`);
   return [trimmed[index], ...trimmed.filter((_, i) => i !== index)];
+}
+
+export const DECISION_STATUSES = ["pending", "answered", "delivered", "closed"] as const;
+export type DecisionStatus = (typeof DECISION_STATUSES)[number];
+
+/** pending: unanswered. answered: answered in the tab, not yet told to the Assistant. delivered: told. closed: answered in chat. */
+export function decisionStatus(d: Decision): DecisionStatus {
+  if (!d.answer) return "pending";
+  if (d.answer.source === "chat") return "closed";
+  return d.deliveredAt !== null ? "delivered" : "answered";
 }

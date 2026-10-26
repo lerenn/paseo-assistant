@@ -31,3 +31,5 @@ When something needs your choice, the Assistant queues it with `assistant_decisi
 ## Open items
 
 For things you are waiting on but do not have to decide ("waiting for the cluster rework PR 3", "pin PR pending restart"), the Assistant keeps a list with `assistant_item_add(title, detail?, link?)`, `assistant_item_update(id, ...)` and `assistant_item_close(id, note?)`. The Open items tab shows the open ones with a count (the sidebar badge stays decisions-only); closed items stay under a collapsed "Closed" section. Decisions are for real choices only.
+
+`assistant_decision_list(status?, since?, until?)` shows the Assistant its decisions with a status (pending, answered, delivered, closed), the recommended option, the answer and its source, and timestamps; it checks it before queueing a new one.
