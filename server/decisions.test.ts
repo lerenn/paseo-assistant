@@ -6,6 +6,7 @@ import { orderOptions } from "../shared/decision";
 import { McpServer } from "./mcp";
 import { DecisionStore, decisionNudge } from "./decisions";
 import { AgentsMailClient } from "./agentsmail";
+import { ItemStore } from "./items";
 import { mailTools, type ToolContext } from "./tools";
 
 let dir: string;
@@ -83,6 +84,7 @@ describe("assistant_decision_add", () => {
     capability: { role, agentId: role === "agent" ? "a1" : undefined },
     agentsMail: new AgentsMailClient(path.join(dir, "no-endpoint.json")),
     decisions: new DecisionStore(path.join(dir, "d.json")),
+    items: new ItemStore(path.join(dir, "i.json")),
     nameOf: async () => "x",
   });
   const call = (c: ToolContext, args: unknown) =>
@@ -112,6 +114,7 @@ describe("assistant_decision_close", () => {
     capability: { role, agentId: role === "agent" ? "a1" : undefined },
     agentsMail: new AgentsMailClient(path.join(dir, "no-endpoint.json")),
     decisions: new DecisionStore(path.join(dir, "d.json")),
+    items: new ItemStore(path.join(dir, "i.json")),
     nameOf: async () => "x",
   });
   const call = (c: ToolContext, name: string, args: unknown) =>
