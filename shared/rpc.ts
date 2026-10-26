@@ -19,11 +19,17 @@ export const resetRpc = defineRpc({
 
 import { mailSchema } from "./mail";
 
-/** Every mail, unread first, then newest first. */
+/**
+ * Every mail to the Assistant, unread first, then newest first. The mail lives in the Agents Mail plugin: when it
+ * is not installed or does not answer, `availability` says why and `mails` is empty.
+ */
 export const mailListRpc = defineRpc({
   name: "assistant.mail.list",
   input: z.object({}),
-  output: z.object({ mails: z.array(mailSchema) }),
+  output: z.object({
+    availability: z.enum(["ok", "not-installed", "unreachable", "outdated"]).default("ok"),
+    mails: z.array(mailSchema),
+  }),
 });
 
 /** Marks the given mails read, or all of them when no ids are given. */

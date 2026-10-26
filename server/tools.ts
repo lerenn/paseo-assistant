@@ -1,18 +1,29 @@
 import { z } from "zod";
-import { mailKindSchema, type Mail } from "../shared/mail";
+import { mailKindSchema } from "../shared/mail";
 import { MAX_OPTIONS, MIN_OPTIONS } from "../shared/decision";
 import type { DecisionStore } from "./decisions";
-import type { MailStore } from "./mailbox";
+import { AgentsMailError, type AgentsMailClient } from "./agentsmail";
 import type { Capability, Role } from "./tokens";
 
 export interface ToolContext {
   capability: Capability;
-  mailbox: MailStore;
+  /** The Agents Mail plugin, where the mail lives now. */
+  agentsMail: AgentsMailClient;
   decisions: DecisionStore;
   /** Best-effort title of an agent; falls back to its id. */
   nameOf(agentId: string, hint?: string): Promise<string>;
-  /** Called after a mail is stored, e.g. to wake the Assistant. */
-  onMail(mail: Mail): void;
+}
+
+const DEPRECATED = "Deprecated: the Agents Mail plugin replaces this tool; use mail_send(to=\"@assistant\", ...), mail_list and mail_read.";
+
+/** Runs a call to Agents Mail and turns "not there" into a message the agent can act on. */
+async function viaAgentsMail<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    if (error instanceof AgentsMailError) throw new Error(`${error.message} Nothing was changed.`);
+    throw error;
+  }
 }
 
 export interface ToolDef {
@@ -34,39 +45,33 @@ export const mailTools: ToolDef[] = [
   {
     name: "assistant_mail",
     description:
-      "Mail the Assistant a status update. Only at milestones: start, blocked (stuck), PR opened or merged, done; not every step. The sender is you.",
+      `Mail the Assistant a status update. Only at milestones: start, blocked (stuck), PR opened or merged, done; not every step. The sender is you. ${DEPRECATED}`,
     roles: ["agent"],
     input: mailInput,
     async run(input: z.output<typeof mailInput>, ctx) {
       const agentId = ctx.capability.agentId;
       if (!agentId) throw new Error("This agent is not known yet; try again after its first turn.");
-      const mail = ctx.mailbox.add({
-        agentId,
-        agentName: await ctx.nameOf(agentId, ctx.capability.name),
-        subject: input.subject,
-        body: input.body,
-        kind: input.kind,
-      });
-      ctx.onMail(mail);
-      return "Mail sent to the Assistant.";
+      const name = await ctx.nameOf(agentId, ctx.capability.name);
+      await viaAgentsMail(() => ctx.agentsMail.sendAsAgent({ agentId, name, subject: input.subject, body: input.body, kind: input.kind }));
+      return `Mail sent to the Assistant. ${DEPRECATED}`;
     },
   },
   {
     name: "assistant_mailbox",
-    description: "List the mails agents sent to the Assistant, unread first. Pass unreadOnly to skip those already read.",
+    description: `List the mails agents sent to the Assistant, unread first. Pass unreadOnly to skip those already read. ${DEPRECATED}`,
     roles: ["assistant"],
     input: z.object({ unreadOnly: z.boolean().default(true) }),
     async run(input: { unreadOnly: boolean }, ctx) {
-      return ctx.mailbox.list({ unreadOnly: input.unreadOnly });
+      return viaAgentsMail(() => ctx.agentsMail.list({ unreadOnly: input.unreadOnly }));
     },
   },
   {
     name: "assistant_mark_read",
-    description: "Mark mails read once you have processed them. Pass ids, or omit them to mark every mail read.",
+    description: `Mark mails read once you have processed them. Pass ids, or omit them to mark every mail read. ${DEPRECATED}`,
     roles: ["assistant"],
     input: z.object({ ids: z.array(z.string()).optional() }),
     async run(input: { ids?: string[] }, ctx) {
-      return { marked: ctx.mailbox.markRead(input.ids) };
+      return { marked: await viaAgentsMail(() => ctx.agentsMail.markRead(input.ids)) };
     },
   },
   {

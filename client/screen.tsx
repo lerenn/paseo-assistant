@@ -85,7 +85,7 @@ export function AssistantScreen(props: PluginScreenProps) {
         </Pressable>
       </View>
       {tab === "mailbox" ? (
-        <MailboxView theme={theme} mails={mails} openAgent={openAgent} />
+        <MailboxView theme={theme} mails={mails} availability={mail.data?.availability} openAgent={openAgent} />
       ) : tab === "decisions" ? (
         <DecisionsView theme={theme} decisions={decisions} />
       ) : session.data && AgentChat ? (

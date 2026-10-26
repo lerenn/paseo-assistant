@@ -3,14 +3,14 @@ import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { decisionAnswerRpc, decisionListRpc, ensureRpc, mailListRpc, mailReadRpc, resetRpc } from "./shared/rpc";
 import { DEFAULT_PROVIDER, assistantSettings, settingsSchema } from "./shared/settings";
 import { MailHttp } from "./server/http";
-import { CAPABILITY_ENV, createContext, injectMail, parseLabelRules, shouldInject } from "./server/inject";
 import { DecisionStore, decisionNudge } from "./server/decisions";
-import { MailStore } from "./server/mailbox";
+import { AgentsMailClient, AgentsMailError } from "./server/agentsmail";
+import { migrateLegacyMail } from "./server/migrate";
 import { Delivery, PendingDeliveries } from "./server/delivery";
 import { McpServer } from "./server/mcp";
 import { AssistantSession, StateFile, dataDir, type AssistantPaseo } from "./server/session";
-import { CapabilityStore } from "./server/tokens";
-import { mailTools, toolNames } from "./server/tools";
+import { CAPABILITY_ENV, CapabilityStore } from "./server/tokens";
+import { mailTools } from "./server/tools";
 
 const DEFAULT_PORT = 47842;
 
@@ -25,7 +25,22 @@ export default function contribute(server: PluginServerContext) {
   const ready = settings.read().then(apply);
   const unsubscribeSettings = settings.subscribe(apply);
 
-  const mailbox = new MailStore(process.env.ASSISTANT_MAILBOX ?? join(dataDir, "mailbox.json"));
+  // Mail lives in the Agents Mail plugin; the old mailbox file is imported there once.
+  const agentsMail = new AgentsMailClient();
+  const legacyMailbox = process.env.ASSISTANT_MAILBOX ?? join(dataDir, "mailbox.json");
+  let lastMigrationTry = 0;
+  const migrate = async (): Promise<void> => {
+    if (Date.now() - lastMigrationTry < 30_000) return;
+    lastMigrationTry = Date.now();
+    try {
+      const n = await migrateLegacyMail(legacyMailbox, agentsMail);
+      if (n !== null) console.log(`assistant: moved ${n} mails to Agents Mail`);
+    } catch (error) {
+      // Not installed yet, or not answering: the file stays and the next list tries again.
+      if (!(error instanceof AgentsMailError)) console.error("assistant: mail import failed", error);
+    }
+  };
+  void migrate();
   const decisions = new DecisionStore(process.env.ASSISTANT_DECISIONS ?? join(dataDir, "decisions.json"));
   const tokens = new CapabilityStore(process.env.ASSISTANT_CAPABILITIES ?? join(dataDir, "capabilities.json"));
 
@@ -77,7 +92,7 @@ export default function contribute(server: PluginServerContext) {
     tokens,
     mcp: new McpServer(mailTools),
     context: () => ({
-      mailbox,
+      agentsMail,
       decisions,
       nameOf: async (agentId, hint) => {
         if (hint) return hint;
@@ -88,7 +103,6 @@ export default function contribute(server: PluginServerContext) {
           return agentId;
         }
       },
-      onMail: () => delivery.notifyMail(),
     }),
   });
   let url: string | null = null;
@@ -112,7 +126,17 @@ export default function contribute(server: PluginServerContext) {
     await ready;
     return session.reset(ctx.paseo as unknown as AssistantPaseo);
   });
-  server.handle(mailListRpc, async () => ({ mails: mailbox.list() }));
+  server.handle(mailListRpc, async () => {
+    const state = await agentsMail.availability();
+    if (!state.available) return { availability: state.reason, mails: [] };
+    await migrate();
+    try {
+      return { availability: "ok" as const, mails: await agentsMail.list() };
+    } catch (error) {
+      if (error instanceof AgentsMailError) return { availability: error.reason === "rejected" ? ("unreachable" as const) : error.reason, mails: [] };
+      throw error;
+    }
+  });
   server.handle(decisionListRpc, async () => ({ decisions: decisions.list() }));
   server.handle(decisionAnswerRpc, async (input, ctx) => {
     capture(ctx);
@@ -120,22 +144,15 @@ export default function contribute(server: PluginServerContext) {
     delivery.enqueueDecision(decision.id);
     return { decision };
   });
-  server.handle(mailReadRpc, async (input) => ({ marked: mailbox.markRead(input.ids) }));
-
-  const removeCreate = server.before("agent.create", async ({ request }, ctx) => {
-    capture(ctx);
-    // Daemons without the create context give no labels or parent: inject nothing rather than everywhere.
-    const agent = createContext(request);
-    if (!agent) return;
-    await ready;
-    const rules = { include: parseLabelRules(latest.mailIncludeLabels), exclude: parseLabelRules(latest.mailExcludeLabels) };
-    if (!shouldInject(agent, rules)) return;
-    await started;
-    // Without the endpoint the agent just does not get the tool; creating it must not fail.
-    if (!url) return;
-    const capability = tokens.create({ role: "agent", name: request.config.title ?? undefined });
-    return injectMail(request, { url, capability, tools: toolNames("agent") });
+  server.handle(mailReadRpc, async (input) => {
+    try {
+      return { marked: await agentsMail.markRead(input.ids) };
+    } catch (error) {
+      if (error instanceof AgentsMailError) return { marked: 0 };
+      throw error;
+    }
   });
+
   const removeOpen = server.before("agent.session_open", ({ request }, ctx) => {
     capture(ctx);
     const capability = request.env[CAPABILITY_ENV];
@@ -155,7 +172,6 @@ export default function contribute(server: PluginServerContext) {
   });
 
   return () => {
-    removeCreate();
     removeOpen();
     removeArchived();
     removeTurnEnded();
