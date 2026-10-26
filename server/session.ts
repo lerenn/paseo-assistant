@@ -8,6 +8,8 @@ import { ALLOWED_TOOLS, DISALLOWED_TOOLS, ASSISTANT_PROMPT, KICKOFF_PROMPT } fro
 
 export const TITLE = "Assistant";
 const RENEW_GAP_MIN = 10;
+/** The mode every new Claude Assistant session starts in. */
+export const BYPASS_MODE = "bypassPermissions";
 const pluginData = path.join(process.env.PASEO_HOME ?? path.join(homedir(), ".paseo"), "plugin-data");
 export const dataDir = path.join(pluginData, "assistant");
 /** The plugin was called "overseer": its conversation and background workspace are kept where they are. */
@@ -44,6 +46,8 @@ export interface AssistantPaseo {
             provider: string;
             systemPrompt: string;
             mcpServers?: Record<string, { type: "http"; url: string; headers: Record<string, string>; alwaysLoad: boolean }>;
+            /** The permission mode of a Claude agent. */
+            modeId?: string;
             options?: { allowedTools: string[]; disallowedTools: string[] };
           };
         }): Promise<{ id: string }>;
@@ -207,9 +211,10 @@ export class AssistantSession {
               },
             }
           : {}),
-        // Tool lists are Claude's options; other providers keep their own approval flow.
+        // Tool lists and the permission mode are Claude's; other providers keep their own approval flow. The mode is
+        // bypassPermissions (a new session never stops on a prompt): deny rules still hold in it, see memory.ts.
         ...(provider.startsWith("claude/")
-          ? { options: { allowedTools: [...ALLOWED_TOOLS, ...memory.allow], disallowedTools: [...DISALLOWED_TOOLS, ...memory.deny] } }
+          ? { modeId: BYPASS_MODE, options: { allowedTools: [...ALLOWED_TOOLS, ...memory.allow], disallowedTools: [...DISALLOWED_TOOLS, ...memory.deny] } }
           : {}),
       },
     });

@@ -3,9 +3,9 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HandoverStore, RENEW_MIN_GAP_MS, handoverPrompt } from "./handover";
-import { claudeProjectKey, memoryDir, memoryRules } from "./memory";
+import { claudeProjectKey, memoryDir, memoryRules, ruleCovers } from "./memory";
 import { ALLOWED_TOOLS, ASSISTANT_PROMPT, DISALLOWED_TOOLS, KICKOFF_PROMPT } from "./prompt";
-import { AssistantSession, StateFile, type AssistantPaseo } from "./session";
+import { AssistantSession, BYPASS_MODE, StateFile, type AssistantPaseo } from "./session";
 
 describe("memory scope", () => {
   const home = "/home/paseo";
@@ -50,6 +50,7 @@ describe("memory scope", () => {
 class Fake {
   private n = 0;
   options: { allowedTools: string[]; disallowedTools: string[] }[] = [];
+  modes: (string | undefined)[] = [];
   sent: { agent: string; text: string }[] = [];
   archived: string[] = [];
   paseo: AssistantPaseo = {
@@ -59,6 +60,7 @@ class Fake {
         agents: {
           create: async (a: any) => {
             this.options.push(a.config.options);
+            this.modes.push(a.config.modeId);
             return { id: `agent-${++this.n}` };
           },
         },
@@ -156,5 +158,70 @@ describe("assistant_session_renew", () => {
     for (const text of ["assistant_session_renew", "after a plugin deploy", "context is very full", "when asked", "Never call it while you are in the middle of acting", "one renew is allowed per 10 minutes", "[Handover from your previous session"]) {
       expect(ASSISTANT_PROMPT, text).toContain(text);
     }
+  });
+});
+
+describe("bypassPermissions default and the hardened deny list", () => {
+  const home = "/home/paseo";
+  const cwd = "/home/paseo/.paseo/plugin-data/overseer/workspace";
+  const { allow, deny, dir } = memoryRules(cwd, home);
+  const denied = (tool: "Edit" | "Read", p: string) => deny.some((r) => ruleCovers(r, tool, p, home, cwd));
+
+  it("stops writes to credentials, config, shell start-up files and system folders, and leaves the memory folder writable", () => {
+    for (const p of [
+      "/home/paseo/.aws/credentials", "/home/paseo/.kube/config", "/home/paseo/.config/gh/hosts.yml", "/home/paseo/.ssh/id_rsa", "/home/paseo/.gitconfig",
+      "/home/paseo/.bashrc", "/home/paseo/.profile", "/home/paseo/.zshrc", "/home/paseo/.bash_profile", "/home/paseo/.paseo/state.json", "/home/paseo/src/x/y.ts",
+      "/etc/passwd", "/usr/bin/node", "/opt/tool", "/var/lib/x", "/root/.bashrc", `${cwd}/note.md`, "/home/paseo/.claude/settings.json", "/home/paseo/.claude/CLAUDE.md",
+    ]) {
+      expect(denied("Edit", p), `Edit ${p}`).toBe(true);
+    }
+    expect(denied("Edit", `${dir}/notes.md`)).toBe(false);
+    expect(denied("Edit", `${dir}/MEMORY.md`)).toBe(false);
+    expect(allow.some((r) => ruleCovers(r, "Edit", `${dir}/notes.md`, home, cwd))).toBe(true);
+    expect(allow.some((r) => ruleCovers(r, "Edit", "/home/paseo/.aws/credentials", home, cwd))).toBe(false);
+  });
+
+  it("stops reading credentials and configuration, not the memory folder", () => {
+    for (const p of ["/home/paseo/.aws/credentials", "/home/paseo/.kube/config", "/home/paseo/.ssh/id_rsa", "/home/paseo/.config/gh/hosts.yml", "/home/paseo/.gitconfig", "/root/x"]) {
+      expect(denied("Read", p), `Read ${p}`).toBe(true);
+    }
+    expect(denied("Read", `${dir}/notes.md`)).toBe(false);
+  });
+
+  it("removes the shell: Bash is denied by bare name, and nothing re-allows it", () => {
+    expect(DISALLOWED_TOOLS).toContain("Bash");
+    expect(ALLOWED_TOOLS.some((t) => t === "Bash" || t.startsWith("Bash("))).toBe(false);
+  });
+
+  it("every deny is a rule form Claude reads (Edit or Read, with // ~/ ./ anchors) and none is a bare Write/Edit", () => {
+    for (const r of deny) expect(r).toMatch(/^(Edit|Read)\((\/\/|~\/|\.\/)/);
+    expect(deny).not.toContain("Write");
+    expect(deny).not.toContain("Edit");
+  });
+
+  let dirTmp: string;
+  beforeEach(() => void (dirTmp = mkdtempSync(path.join(tmpdir(), "bypass-"))));
+  afterEach(() => rmSync(dirTmp, { recursive: true, force: true }));
+
+  it("a new Claude session (ensure, and the renew tool) starts in bypassPermissions with the deny list", async () => {
+    const f = new Fake();
+    const session = new AssistantSession(new StateFile(path.join(dirTmp, "s.json")), () => "claude/x", path.join(dirTmp, "ws"), async () => null, new HandoverStore(path.join(dirTmp, "h.json")), "/home/paseo", 0);
+    await session.ensure(f.paseo);
+    await session.renew(f.paseo, { handover: "handover text that is long enough" }, () => 1_000_000);
+    expect(f.modes).toEqual([BYPASS_MODE, BYPASS_MODE]);
+    expect(BYPASS_MODE).toBe("bypassPermissions");
+    for (const o of f.options) {
+      expect(o.disallowedTools).toContain("Bash");
+      expect(o.disallowedTools).toContain("mcp__paseo__create_agent");
+      expect(o.disallowedTools).toEqual(expect.arrayContaining(memoryRules(path.join(dirTmp, "ws"), "/home/paseo").deny));
+    }
+  });
+
+  it("a non-Claude provider gets no mode or tool lists of ours", async () => {
+    const f = new Fake();
+    const session = new AssistantSession(new StateFile(path.join(dirTmp, "s2.json")), () => "codex/y", path.join(dirTmp, "ws2"), async () => null, new HandoverStore(path.join(dirTmp, "h2.json")), "/home/paseo", 0);
+    await session.ensure(f.paseo);
+    expect(f.modes).toEqual([undefined]);
+    expect(f.options).toEqual([undefined]);
   });
 });

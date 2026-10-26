@@ -127,6 +127,8 @@ export const DISALLOWED_TOOLS = [
   // options, see memory.ts) is written with them. Other paths are denied there or left to the permission prompt.
   "NotebookEdit",
   "MultiEdit",
+  // No shell: the Assistant works through MCP tools. In bypassPermissions mode nothing would stop it, so the tool is removed.
+  "Bash",
   // These would make subagents tied to the Assistant's session (and no pod workspaces): use the assistant_* tools.
   "mcp__paseo__create_agent",
   "mcp__paseo__create_workspace",
