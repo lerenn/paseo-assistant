@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
-import { decisionAnswerRpc, decisionListRpc, ensureRpc, itemListRpc, mailListRpc, mailReadRpc, resetRpc } from "./shared/rpc";
+import { decisionAnswerRpc, currentRpc, decisionListRpc, ensureRpc, itemListRpc, mailListRpc, mailReadRpc, resetRpc } from "./shared/rpc";
 import { DEFAULT_PROVIDER, assistantSettings, settingsSchema } from "./shared/settings";
 import { MailHttp } from "./server/http";
 import { DecisionStore, decisionNudge } from "./server/decisions";
@@ -124,6 +124,7 @@ export default function contribute(server: PluginServerContext) {
     await ready;
     return session.ensure(ctx.paseo as unknown as AssistantPaseo);
   });
+  server.handle(currentRpc, async () => ({ agentId: session.currentAgentId() }));
   server.handle(resetRpc, async (_input, ctx) => {
     capture(ctx);
     await ready;
