@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 /** Debounce for a burst of mails or answers, so they give one message. */
@@ -47,6 +47,29 @@ export class PendingDeliveries {
   }
 }
 
+/**
+ * The agent status in what `ref(id).refresh()` returns: `{ agent: { status } }` (older code read `.status` off
+ * the result itself, which is always undefined, so nothing was ever seen idle).
+ */
+export function statusOf(snapshot: unknown): string | null {
+  const s = snapshot as { agent?: { status?: unknown }; status?: unknown } | null | undefined;
+  const status = s?.agent?.status ?? s?.status;
+  return typeof status === "string" ? status : null;
+}
+
+/**
+ * Drops the queued answers once, the first time it runs with this marker file: answers stuck before the status fix
+ * were handled by hand. Later starts keep the queue as it is.
+ */
+export function dropStaleOnce(queue: PendingDeliveries, marker: string): string[] {
+  if (existsSync(marker)) return [];
+  const ids = queue.list();
+  queue.remove(ids);
+  mkdirSync(path.dirname(marker), { recursive: true });
+  writeFileSync(marker, new Date().toISOString(), "utf8");
+  return ids;
+}
+
 export interface DeliveryDeps {
   queue: PendingDeliveries;
   /** The Assistant's real status from the Paseo API, or null when unknown. */
@@ -55,6 +78,8 @@ export interface DeliveryDeps {
   decisionText(id: string): string | null;
   /** Sends a message that starts a turn; only called once the Assistant was seen idle, twice. */
   send(text: string): Promise<void>;
+  /** Called with the queued ids once their message was sent. */
+  delivered?(ids: string[]): void;
   debounceMs?: number;
   pollMs?: number;
 }
@@ -134,6 +159,7 @@ export class Delivery {
       try {
         await this.deps.send(parts.join("\n\n"));
         this.deps.queue.remove(ids);
+        this.deps.delivered?.(ids);
       } catch (error) {
         console.error("assistant: could not message the Assistant", error);
         if (ids.length) this.schedule(this.deps.pollMs ?? DELIVERY_POLL_MS);

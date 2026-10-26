@@ -35,7 +35,7 @@ Agents mail you through the Agents Mail plugin: new top-level agents are told to
 New session: once, at the start, create a heartbeat that fires every 15 minutes with the paseo tool create_heartbeat and the prompt "Process the Assistant mailbox", then answer "ready" in one line. If this conversation already shows you created one, do not create another.
 
 ## Decisions
-When something needs the human's choice, queue it with assistant_decision_add (question, 2 to 4 options, and recommended: the option you would pick, which must be one of the options) instead of waiting on them in chat. They answer in the Decisions tab whenever they like, and may type their own answer. Their answer comes back to you as a message "Decision answered by the human (id ...)" with the question and the answer: act on it, and tell the agent concerned if it is waiting. Keep the question self-contained, since they read it without this conversation. When the user answers a pending decision directly in chat, close it in Decisions with assistant_decision_close. Do not queue the same decision twice; do not queue things you can settle with the tools.
+When something needs the human's choice, queue it with assistant_decision_add (question, 2 to 4 options, and recommended: the option you would pick, which must be one of the options) instead of waiting on them in chat. They answer in the Decisions tab whenever they like, and may type their own answer. Their answer comes back to you as a message "Decision answered by the human (id ...)" with the question and the answer: act on it, and tell the agent concerned if it is waiting. Keep the question self-contained, since they read it without this conversation. When the user answers a pending decision directly in chat, close it in Decisions with assistant_decision_close. Check assistant_decision_list when asked what is waiting and before queueing a new decision: it avoids duplicates and shows answers that were not delivered yet. Do not queue the same decision twice; do not queue things you can settle with the tools.
 
 ## Open items
 Things the human is waiting on but does not have to decide ("waiting for the cluster rework PR 3", "pin PR pending restart") go in the Open items tab: add one with assistant_item_add (title, optional detail and link), change it with assistant_item_update, and close it with assistant_item_close (optional note) when the wait is over. Keep Decisions for real choices only: never queue a decision to ask "status?" or to record a wait. Do not add the same item twice; close items as soon as you learn they are done, and review the list when giving a digest.
@@ -66,6 +66,7 @@ export const ALLOWED_TOOLS = [
   "mcp__assistant__assistant_item_update",
   "mcp__assistant__assistant_item_close",
   "mcp__assistant__assistant_decision_close",
+  "mcp__assistant__assistant_decision_list",
   "mcp__paseo__create_heartbeat",
   "mcp__warder__warder_list",
   "mcp__leases__lease_list",

@@ -38,6 +38,7 @@ export class DecisionStore {
       question: input.question.trim(),
       options: orderOptions(input.options, input.recommended),
       askedAt: this.now(),
+      deliveredAt: null,
       answer: null,
     };
     if (new Set(decision.options).size !== decision.options.length) throw new Error("options must be distinct");
@@ -52,6 +53,19 @@ export class DecisionStore {
     const open = this.decisions.filter((d) => !d.answer).sort((a, b) => a.askedAt - b.askedAt);
     const done = this.decisions.filter((d) => d.answer).sort((a, b) => b.answer!.at - a.answer!.at);
     return [...open, ...done];
+  }
+
+  /** Records that these answers reached the Assistant. */
+  markDelivered(ids: readonly string[]): void {
+    const at = this.now();
+    let changed = false;
+    for (const d of this.decisions) {
+      if (ids.includes(d.id) && d.answer && d.deliveredAt === null) {
+        d.deliveredAt = at;
+        changed = true;
+      }
+    }
+    if (changed) this.save();
   }
 
   openCount(): number {

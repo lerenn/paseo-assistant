@@ -149,3 +149,64 @@ describe("assistant_decision_close", () => {
     expect(store.answer(d.id, "a", false).answer?.source).toBe("tab");
   });
 });
+
+describe("decision status and assistant_decision_list", () => {
+  const ctx = (): ToolContext => ({
+    capability: { role: "assistant" },
+    agentsMail: new AgentsMailClient(path.join(dir, "none.json")),
+    decisions: new DecisionStore(path.join(dir, "d.json"), () => Date.parse("2026-10-26T10:00:00Z")),
+    items: new ItemStore(path.join(dir, "i.json")),
+    nameOf: async () => "x",
+  });
+  const list = async (c: ToolContext, args: unknown = {}) =>
+    JSON.parse(
+      ((await new McpServer(mailTools).handle({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "assistant_decision_list", arguments: args } }, c)) as any).result.content[0].text,
+    ) as any[];
+
+  it("reports pending, answered (not yet told), delivered and closed, with timestamps and the recommended option", async () => {
+    const c = ctx();
+    const pending = c.decisions.add(input);
+    const tab = c.decisions.add({ ...input, question: "Tab?" });
+    const delivered = c.decisions.add({ ...input, question: "Delivered?" });
+    const chat = c.decisions.add({ ...input, question: "Chat?" });
+    c.decisions.answer(tab.id, "No", false);
+    c.decisions.answer(delivered.id, "Yes", false);
+    c.decisions.markDelivered([delivered.id]);
+    c.decisions.close(chat.id, "Later");
+    const all = await list(c);
+    const byQuestion = Object.fromEntries(all.map((d) => [d.question, d]));
+    expect(byQuestion["Ship it?"]).toMatchObject({ id: pending.id, status: "pending", recommended: "Yes", answer: null, source: null });
+    expect(byQuestion["Tab?"]).toMatchObject({ status: "answered", answer: "No", source: "tab", deliveredAt: null });
+    expect(byQuestion["Delivered?"]).toMatchObject({ status: "delivered", source: "tab" });
+    expect(byQuestion["Delivered?"].deliveredAt).toBe("2026-10-26T10:00:00.000Z");
+    expect(byQuestion["Chat?"]).toMatchObject({ status: "closed", source: "chat", answer: "Later" });
+    expect(byQuestion["Ship it?"].createdAt).toBe("2026-10-26T10:00:00.000Z");
+  });
+
+  it("filters by status and by creation time", async () => {
+    let t = Date.parse("2026-10-26T10:00:00Z");
+    const c = ctx();
+    c.decisions = new DecisionStore(path.join(dir, "d2.json"), () => (t += 3_600_000));
+    c.decisions.add(input);
+    const second = c.decisions.add({ ...input, question: "Second?" });
+    c.decisions.answer(second.id, "No", false);
+    expect((await list(c, { status: "answered" })).map((d) => d.question)).toEqual(["Second?"]);
+    expect((await list(c, { status: "pending" })).map((d) => d.question)).toEqual(["Ship it?"]);
+    expect((await list(c, { since: "2026-10-26T12:30:00Z" })).map((d) => d.question)).toEqual([]);
+    expect((await list(c, { since: "2026-10-26T11:30:00Z", until: "2026-10-26T12:30:00Z" })).map((d) => d.question)).toEqual(["Second?"]);
+  });
+
+  it("is for the Assistant only and rejects a bad date", async () => {
+    const agent = { ...ctx(), capability: { role: "agent" as const, agentId: "a1" } };
+    const out: any = await new McpServer(mailTools).handle({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "assistant_decision_list", arguments: {} } }, agent);
+    expect(out.error.code).toBe(-32602);
+    const bad: any = await new McpServer(mailTools).handle({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "assistant_decision_list", arguments: { since: "not a date" } } }, ctx());
+    expect(bad.result.isError).toBe(true);
+  });
+
+  it("tells the Assistant to check the list before queueing", async () => {
+    const { ASSISTANT_PROMPT, ALLOWED_TOOLS } = await import("./prompt");
+    expect(ASSISTANT_PROMPT).toContain("assistant_decision_list");
+    expect(ALLOWED_TOOLS).toContain("mcp__assistant__assistant_decision_list");
+  });
+});

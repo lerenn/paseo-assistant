@@ -117,3 +117,52 @@ describe("Delivery", () => {
     expect(second.send).toHaveBeenCalledWith("answer d1");
   });
 });
+
+describe("statusOf (regression: answers stuck in the queue)", () => {
+  it("reads the status from the shape refresh() returns, where it sits under `agent`", async () => {
+    const { statusOf } = await import("./delivery");
+    expect(statusOf({ agent: { status: "idle" }, project: null })).toBe("idle");
+    expect(statusOf({ agent: { status: "running" } })).toBe("running");
+    expect(statusOf({ status: "idle" })).toBe("idle");
+    expect(statusOf(null)).toBeNull();
+    expect(statusOf({ agent: {} })).toBeNull();
+  });
+
+  it("delivers a queued answer to an Assistant whose status comes from a refresh() result, and reports it delivered", async () => {
+    const { statusOf } = await import("./delivery");
+    const queue = new PendingDeliveries(path.join(dir, "q.json"));
+    queue.add("d1");
+    const delivered: string[][] = [];
+    const send = vi.fn(async (_t: string) => {});
+    const refresh = async () => ({ agent: { status: "idle" }, project: null });
+    const delivery = new Delivery({
+      queue,
+      status: async () => statusOf(await refresh()),
+      decisionText: (id) => `answer ${id}`,
+      send,
+      delivered: (ids) => delivered.push(ids),
+      debounceMs: 100,
+      pollMs: 1000,
+    });
+    delivery.poke();
+    await tick(500);
+    expect(send).toHaveBeenCalledWith("answer d1");
+    expect(queue.list()).toEqual([]);
+    expect(delivered).toEqual([["d1"]]);
+  });
+});
+
+describe("dropStaleOnce", () => {
+  it("drops the queue the first time only, and returns what it dropped", async () => {
+    const { dropStaleOnce } = await import("./delivery");
+    const queue = new PendingDeliveries(path.join(dir, "q.json"));
+    queue.add("a");
+    queue.add("b");
+    const marker = path.join(dir, "q.json.cleared-v1");
+    expect(dropStaleOnce(queue, marker)).toEqual(["a", "b"]);
+    expect(queue.list()).toEqual([]);
+    queue.add("c");
+    expect(dropStaleOnce(queue, marker)).toEqual([]);
+    expect(queue.list()).toEqual(["c"]);
+  });
+});
