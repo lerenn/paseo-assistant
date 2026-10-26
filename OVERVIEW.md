@@ -1,4 +1,4 @@
-Assistant is a first mate for the other agents on your Paseo daemon. It is one long-lived conversation that watches your agents, passes on their questions and summarises what needs you. A sidebar entry opens its screen, with Chat, Mailbox, Decisions and Open items tabs.
+Assistant is a first mate for the other agents on your Paseo daemon. It is one long-lived conversation that watches your agents, passes on their questions and summarises what needs you. A sidebar entry (a spinner while the Assistant is working, the sparkles icon when it is idle) opens its screen, with Chat, Mailbox, Decisions and Open items tabs.
 
 ## How it works
 

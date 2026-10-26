@@ -10,6 +10,13 @@ export const ensureRpc = defineRpc({
   output: sessionSchema,
 });
 
+/** The current Assistant agent, or null when none exists yet. Never creates one: the sidebar row asks it. */
+export const currentRpc = defineRpc({
+  name: "assistant.current",
+  input: z.object({}),
+  output: z.object({ agentId: z.string().nullable() }),
+});
+
 /** Archives the current conversation and starts a fresh one. */
 export const resetRpc = defineRpc({
   name: "assistant.reset",
