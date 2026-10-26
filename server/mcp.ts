@@ -39,7 +39,13 @@ export class McpServer {
         return reply({});
       case "tools/list":
         return reply({
-          tools: visible.map((t) => ({ name: t.name, description: t.description, inputSchema: z.toJSONSchema(t.input, { io: "input" }) })),
+          tools: visible.map((t) => ({ name: t.name, description: t.description, inputSchema: z.toJSONSchema(t.input, {
+              io: "input",
+              // The legacy `needs_louis` and `needs_user` kinds are still accepted but no longer advertised.
+              override: ({ jsonSchema }) => {
+                if (Array.isArray(jsonSchema.enum)) jsonSchema.enum = jsonSchema.enum.filter((v) => v !== "needs_louis" && v !== "needs_user");
+              },
+            }) })),
         });
       case "tools/call": {
         const tool = visible.find((t) => t.name === req.params?.name);

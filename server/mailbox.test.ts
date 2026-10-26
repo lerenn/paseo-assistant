@@ -53,3 +53,12 @@ describe("MailStore", () => {
     expect(all.some((m) => m.subject === "m0")).toBe(false);
   });
 });
+
+describe("legacy kinds", () => {
+  it("shows stored needs_louis and needs_user mails as blocked", () => {
+    const file = path.join(dir, "legacy.json");
+    const base = { agentId: "a", agentName: "A", subject: "s", body: "", at: 1, read: false };
+    writeFileSync(file, JSON.stringify([{ ...base, id: "1", kind: "needs_louis" }, { ...base, id: "2", kind: "needs_user" }]));
+    expect(new MailStore(file).list().map((m) => m.kind).sort()).toEqual(["blocked", "blocked"]);
+  });
+});

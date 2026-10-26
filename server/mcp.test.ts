@@ -26,7 +26,7 @@ const call = (mcp: McpServer, ctx: ToolContext, name: string, args: unknown) =>
 describe("assistant MCP", () => {
   it("shows agents only assistant_mail and the Assistant only the read tools", async () => {
     expect(toolNames("agent")).toEqual(["assistant_mail"]);
-    expect(toolNames("assistant")).toEqual(["assistant_mailbox", "assistant_mark_read", "assistant_decision_add"]);
+    expect(toolNames("assistant")).toEqual(["assistant_mailbox", "assistant_mark_read", "assistant_decision_add", "assistant_decision_close"]);
     const { mcp, ctx } = setup({ role: "agent", agentId: "a1" });
     const list: any = await mcp.handle({ jsonrpc: "2.0", id: 1, method: "tools/list" }, ctx);
     expect(list.result.tools.map((t: any) => t.name)).toEqual(["assistant_mail"]);
@@ -38,6 +38,15 @@ describe("assistant MCP", () => {
     expect(out.result.isError).toBeUndefined();
     expect(mailbox.list()[0]).toMatchObject({ agentId: "a1", agentName: "Builder", subject: "PR opened", kind: "pr", read: false });
     expect(onMail).toHaveBeenCalledOnce();
+  });
+
+  it("treats the legacy needs_louis and needs_user kinds as blocked", async () => {
+    const { mcp, ctx, mailbox } = setup({ role: "agent", agentId: "a1" });
+    await call(mcp, ctx, "assistant_mail", { subject: "s", kind: "needs_louis" });
+    await call(mcp, ctx, "assistant_mail", { subject: "t", kind: "needs_user" });
+    expect(mailbox.list().map((m) => m.kind)).toEqual(["blocked", "blocked"]);
+    const list: any = await mcp.handle({ jsonrpc: "2.0", id: 1, method: "tools/list" }, ctx);
+    expect(JSON.stringify(list.result.tools)).not.toMatch(/louis|needs_user/i);
   });
 
   it("rejects an unknown kind and an agent that is not bound yet", async () => {

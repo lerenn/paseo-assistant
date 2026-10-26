@@ -6,6 +6,7 @@ import { MailHttp } from "./server/http";
 import { CAPABILITY_ENV, createContext, injectMail, parseLabelRules, shouldInject } from "./server/inject";
 import { DecisionStore, decisionNudge } from "./server/decisions";
 import { MailStore } from "./server/mailbox";
+import { Delivery, PendingDeliveries } from "./server/delivery";
 import { McpServer } from "./server/mcp";
 import { AssistantSession, StateFile, dataDir, type AssistantPaseo } from "./server/session";
 import { CapabilityStore } from "./server/tokens";
@@ -45,16 +46,32 @@ export default function contribute(server: PluginServerContext) {
     },
   );
 
-  /** Messages the Assistant now: "steer" joins a running turn and starts one when it is idle. */
-  const nudge = (text: string): Promise<void> => {
+  /** Messages the Assistant; "steer" starts a turn on an idle agent. Callers check that it is idle first. Rejects when it cannot send. */
+  const nudge = async (text: string): Promise<void> => {
     const assistantId = session.currentAgentId();
     const send = assistantId && paseo ? paseo.agents.ref(assistantId).send : undefined;
-    if (!assistantId || !paseo || !send) return Promise.resolve();
-    return send.call(paseo.agents.ref(assistantId), text, { activeTurnBehavior: "steer" }).then(
-      () => undefined,
-      (error) => console.error("assistant: could not message the Assistant", error),
-    );
+    if (!assistantId || !paseo || !send) throw new Error("the Assistant is not reachable yet");
+    await send.call(paseo.agents.ref(assistantId), text, { activeTurnBehavior: "steer" });
   };
+
+  /** New mail and answered decisions reach the Assistant only when it is idle; see Delivery. */
+  const delivery = new Delivery({
+    queue: new PendingDeliveries(process.env.ASSISTANT_PENDING ?? join(dataDir, "pending-deliveries.json")),
+    status: async () => {
+      const assistantId = session.currentAgentId();
+      if (!assistantId || !paseo) return null;
+      const snapshot = (await paseo.agents.ref(assistantId).refresh()) as { status?: string } | null | undefined;
+      return snapshot?.status ?? null;
+    },
+    decisionText: (id) => {
+      const decision = decisions.list().find((d) => d.id === id);
+      return decision?.answer ? decisionNudge(decision) : null;
+    },
+    send: nudge,
+  });
+
+  // Answers queued before a restart are delivered once the Assistant is reachable and idle.
+  delivery.poke();
 
   const http = new MailHttp({
     tokens,
@@ -71,10 +88,7 @@ export default function contribute(server: PluginServerContext) {
           return agentId;
         }
       },
-      onMail: (mail) => {
-        if (mail.kind !== "needs_louis") return;
-        nudge(`A needs_louis mail arrived from ${mail.agentName}: "${mail.subject}". Read the mailbox and surface it now.`);
-      },
+      onMail: () => delivery.notifyMail(),
     }),
   });
   let url: string | null = null;
@@ -103,7 +117,7 @@ export default function contribute(server: PluginServerContext) {
   server.handle(decisionAnswerRpc, async (input, ctx) => {
     capture(ctx);
     const decision = decisions.answer(input.id, input.answer, input.other);
-    await nudge(decisionNudge(decision));
+    delivery.enqueueDecision(decision.id);
     return { decision };
   });
   server.handle(mailReadRpc, async (input) => ({ marked: mailbox.markRead(input.ids) }));
@@ -127,6 +141,11 @@ export default function contribute(server: PluginServerContext) {
     const capability = request.env[CAPABILITY_ENV];
     if (capability) tokens.bind(capability, request.agentId);
   });
+  // The Assistant just finished a turn: deliver what waited for it.
+  const removeTurnEnded = server.on("agent.turn_ended", ({ agent }, ctx) => {
+    capture(ctx);
+    if (agent.id === session.currentAgentId()) delivery.poke();
+  });
   const removeArchived = server.on("agent.archived", ({ agent }, ctx) => {
     capture(ctx);
     tokens.revokeAgent(agent.id);
@@ -139,7 +158,9 @@ export default function contribute(server: PluginServerContext) {
     removeCreate();
     removeOpen();
     removeArchived();
+    removeTurnEnded();
     unsubscribeSettings();
+    delivery.stop();
     void http.stop();
   };
 }
