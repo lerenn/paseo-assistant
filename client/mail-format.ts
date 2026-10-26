@@ -3,7 +3,7 @@ import type { Mail } from "../shared/mail";
 export const KIND_LABEL: Record<Mail["kind"], string> = {
   start: "Started",
   blocked: "Blocked",
-  needs_louis: "Needs you",
+  needs_user: "Needs you",
   pr: "PR",
   done: "Done",
 };

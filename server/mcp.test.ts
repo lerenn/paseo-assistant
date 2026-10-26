@@ -40,6 +40,15 @@ describe("assistant MCP", () => {
     expect(onMail).toHaveBeenCalledOnce();
   });
 
+  it("accepts the legacy needs_louis kind as needs_user", async () => {
+    const { mcp, ctx, mailbox } = setup({ role: "agent", agentId: "a1" });
+    await call(mcp, ctx, "assistant_mail", { subject: "s", kind: "needs_louis" });
+    await call(mcp, ctx, "assistant_mail", { subject: "t", kind: "needs_user" });
+    expect(mailbox.list().map((m) => m.kind)).toEqual(["needs_user", "needs_user"]);
+    const list: any = await mcp.handle({ jsonrpc: "2.0", id: 1, method: "tools/list" }, ctx);
+    expect(JSON.stringify(list.result.tools)).not.toMatch(/louis/i);
+  });
+
   it("rejects an unknown kind and an agent that is not bound yet", async () => {
     const bad = setup({ role: "agent", agentId: "a1" });
     expect((await call(bad.mcp, bad.ctx, "assistant_mail", { subject: "s", kind: "chatty" })).result.isError).toBe(true);

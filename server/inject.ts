@@ -7,7 +7,7 @@ export const CAPABILITY_ENV = "PASEO_ASSISTANT_CAPABILITY";
 /** The Assistant itself: it reads the mailbox, so it never gets the sender instruction. */
 export const ASSISTANT_LABEL = ["paseo.assistant", "1"] as const;
 
-export const MAIL_INSTRUCTION = `Mail the Assistant with the assistant_mail tool (subject, body, kind) only at milestones: start, blocked, needs Louis, PR opened or merged, done. Not at every step. kind is one of start | blocked | needs_louis | pr | done. Keep the subject to one line and the body to a few lines.`;
+export const MAIL_INSTRUCTION = `Mail the Assistant with the assistant_mail tool (subject, body, kind) only at milestones: start, blocked, needs the user, PR opened or merged, done. Not at every step. kind is one of start | blocked | needs_user | pr | done. Keep the subject to one line and the body to a few lines.`;
 
 export interface LabelRule {
   key: string;

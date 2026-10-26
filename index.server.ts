@@ -6,6 +6,7 @@ import { MailHttp } from "./server/http";
 import { CAPABILITY_ENV, createContext, injectMail, parseLabelRules, shouldInject } from "./server/inject";
 import { DecisionStore, decisionNudge } from "./server/decisions";
 import { MailStore } from "./server/mailbox";
+import { MailWaker } from "./server/wake";
 import { McpServer } from "./server/mcp";
 import { AssistantSession, StateFile, dataDir, type AssistantPaseo } from "./server/session";
 import { CapabilityStore } from "./server/tokens";
@@ -45,7 +46,7 @@ export default function contribute(server: PluginServerContext) {
     },
   );
 
-  /** Messages the Assistant now: "steer" joins a running turn and starts one when it is idle. */
+  /** Messages the Assistant now: "steer" joins a running turn and starts one when it is idle (used for decision answers, and for mail only once idle was seen). */
   const nudge = (text: string): Promise<void> => {
     const assistantId = session.currentAgentId();
     const send = assistantId && paseo ? paseo.agents.ref(assistantId).send : undefined;
@@ -55,6 +56,17 @@ export default function contribute(server: PluginServerContext) {
       (error) => console.error("assistant: could not message the Assistant", error),
     );
   };
+
+  /** Any new mail wakes an idle Assistant; a running one is left alone and finds the mail on its next read. */
+  const waker = new MailWaker({
+    status: async () => {
+      const assistantId = session.currentAgentId();
+      if (!assistantId || !paseo) return null;
+      const snapshot = (await paseo.agents.ref(assistantId).refresh()) as { status?: string } | null | undefined;
+      return snapshot?.status ?? null;
+    },
+    wake: nudge,
+  });
 
   const http = new MailHttp({
     tokens,
@@ -71,10 +83,7 @@ export default function contribute(server: PluginServerContext) {
           return agentId;
         }
       },
-      onMail: (mail) => {
-        if (mail.kind !== "needs_louis") return;
-        nudge(`A needs_louis mail arrived from ${mail.agentName}: "${mail.subject}". Read the mailbox and surface it now.`);
-      },
+      onMail: () => waker.notify(),
     }),
   });
   let url: string | null = null;
@@ -140,6 +149,7 @@ export default function contribute(server: PluginServerContext) {
     removeOpen();
     removeArchived();
     unsubscribeSettings();
+    waker.stop();
     void http.stop();
   };
 }

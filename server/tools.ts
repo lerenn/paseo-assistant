@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MAIL_KINDS, type Mail } from "../shared/mail";
+import { mailKindSchema, type Mail } from "../shared/mail";
 import { MAX_OPTIONS, MIN_OPTIONS } from "../shared/decision";
 import type { DecisionStore } from "./decisions";
 import type { MailStore } from "./mailbox";
@@ -11,7 +11,7 @@ export interface ToolContext {
   decisions: DecisionStore;
   /** Best-effort title of an agent; falls back to its id. */
   nameOf(agentId: string, hint?: string): Promise<string>;
-  /** Called after a mail is stored, e.g. to wake the Assistant on `needs_louis`. */
+  /** Called after a mail is stored, e.g. to wake the Assistant. */
   onMail(mail: Mail): void;
 }
 
@@ -27,14 +27,14 @@ export interface ToolDef {
 const mailInput = z.object({
   subject: z.string().min(1).max(200).describe("One line."),
   body: z.string().max(10_000).default("").describe("A few lines."),
-  kind: z.enum(MAIL_KINDS).describe("start | blocked | needs_louis | pr | done"),
+  kind: mailKindSchema.describe("start | blocked | needs_user | pr | done"),
 });
 
 export const mailTools: ToolDef[] = [
   {
     name: "assistant_mail",
     description:
-      "Mail the Assistant a status update. Only at milestones: start, blocked, needs Louis, PR opened or merged, done; not every step. The sender is you.",
+      "Mail the Assistant a status update. Only at milestones: start, blocked, needs the user, PR opened or merged, done; not every step. The sender is you.",
     roles: ["agent"],
     input: mailInput,
     async run(input: z.output<typeof mailInput>, ctx) {
