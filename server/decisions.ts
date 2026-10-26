@@ -59,14 +59,21 @@ export class DecisionStore {
   }
 
   /** Records the answer once; a second answer to the same decision is refused. */
-  answer(id: string, text: string, other: boolean): Decision {
+  answer(id: string, text: string, other: boolean, source: "tab" | "chat" = "tab"): Decision {
     const decision = this.decisions.find((d) => d.id === id);
     if (!decision) throw new Error("Unknown decision");
     if (decision.answer) throw new Error("Decision already answered");
     if (!other && !decision.options.includes(text)) throw new Error("Not one of the options");
-    decision.answer = { text, other, at: this.now() };
+    decision.answer = { text, other, at: this.now(), source };
     this.save();
     return decision;
+  }
+
+  /** Records an answer the human gave in chat; one outside the options is kept as free text. */
+  close(id: string, text: string): Decision {
+    const decision = this.decisions.find((d) => d.id === id);
+    if (!decision) throw new Error("Unknown decision");
+    return this.answer(id, text, !decision.options.includes(text), "chat");
   }
 }
 

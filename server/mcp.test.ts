@@ -26,7 +26,7 @@ const call = (mcp: McpServer, ctx: ToolContext, name: string, args: unknown) =>
 describe("assistant MCP", () => {
   it("shows agents only assistant_mail and the Assistant only the read tools", async () => {
     expect(toolNames("agent")).toEqual(["assistant_mail"]);
-    expect(toolNames("assistant")).toEqual(["assistant_mailbox", "assistant_mark_read", "assistant_decision_add"]);
+    expect(toolNames("assistant")).toEqual(["assistant_mailbox", "assistant_mark_read", "assistant_decision_add", "assistant_decision_close"]);
     const { mcp, ctx } = setup({ role: "agent", agentId: "a1" });
     const list: any = await mcp.handle({ jsonrpc: "2.0", id: 1, method: "tools/list" }, ctx);
     expect(list.result.tools.map((t: any) => t.name)).toEqual(["assistant_mail"]);

@@ -91,7 +91,7 @@ export function DecisionsView({ theme, decisions }: { theme: PluginTheme; decisi
                 <View key={d.id} style={{ paddingHorizontal: 16, paddingVertical: 8, gap: 2, opacity: 0.7 }}>
                   <Text style={{ color: theme.colors.foreground, fontSize: 13 }}>{d.question}</Text>
                   <Text style={{ color: theme.colors.foregroundMuted, fontSize: 12 }}>
-                    {d.answer!.text} · {new Date(d.answer!.at).toLocaleString()}
+                    {d.answer!.text} · {d.answer!.source === "chat" ? "answered in chat · " : ""}{new Date(d.answer!.at).toLocaleString()}
                   </Text>
                 </View>
               ))

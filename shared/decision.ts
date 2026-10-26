@@ -9,7 +9,14 @@ export const decisionSchema = z.object({
   /** 2 to 4 options, the recommended one first. The UI adds "Other…" last. */
   options: z.array(z.string()).min(MIN_OPTIONS).max(MAX_OPTIONS),
   askedAt: z.number(),
-  answer: z.object({ text: z.string(), other: z.boolean(), at: z.number() }).nullable(),
+  answer: z
+    .object({
+      text: z.string(),
+      other: z.boolean(),
+      at: z.number(),
+      /** Where it was answered: the Decisions tab, or in chat (closed by the Assistant). */
+      source: z.enum(["tab", "chat"]).default("tab"),
+    }).nullable(),
 });
 export type Decision = z.output<typeof decisionSchema>;
 

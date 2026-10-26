@@ -107,3 +107,44 @@ describe("assistant_decision_add", () => {
     expect((await call(c, { ...input, recommended: "zzz" })).result.isError).toBe(true);
   });
 });
+
+describe("assistant_decision_close", () => {
+  const ctx = (role: "agent" | "assistant" = "assistant"): ToolContext => ({
+    capability: { role, agentId: role === "agent" ? "a1" : undefined },
+    mailbox: new MailStore(path.join(dir, "m.json")),
+    decisions: new DecisionStore(path.join(dir, "d.json")),
+    nameOf: async () => "x",
+    onMail: () => undefined,
+  });
+  const call = (c: ToolContext, name: string, args: unknown) =>
+    new McpServer(mailTools).handle({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }, c) as Promise<any>;
+
+  it("records a chat answer without any nudge, shown as chat", async () => {
+    const c = ctx();
+    const id = JSON.parse((await call(c, "assistant_decision_add", input)).result.content[0].text).id;
+    const out = await call(c, "assistant_decision_close", { id, answer: "Yes" });
+    expect(out.result.isError).toBeUndefined();
+    const d = c.decisions.list()[0];
+    expect(d.answer).toMatchObject({ text: "Yes", other: false, source: "chat" });
+    expect(c.decisions.openCount()).toBe(0);
+  });
+  it("keeps an answer outside the options as free text", async () => {
+    const c = ctx();
+    const id = JSON.parse((await call(c, "assistant_decision_add", input)).result.content[0].text).id;
+    await call(c, "assistant_decision_close", { id, answer: "Tomorrow" });
+    expect(c.decisions.list()[0].answer).toMatchObject({ text: "Tomorrow", other: true, source: "chat" });
+  });
+  it("errors on an unknown or already answered id, and is hidden from agents", async () => {
+    const c = ctx();
+    expect((await call(c, "assistant_decision_close", { id: "nope", answer: "x" })).result.content[0].text).toContain("Unknown decision");
+    const id = JSON.parse((await call(c, "assistant_decision_add", input)).result.content[0].text).id;
+    await call(c, "assistant_decision_close", { id, answer: "Yes" });
+    expect((await call(c, "assistant_decision_close", { id, answer: "No" })).result.content[0].text).toContain("already answered");
+    expect((await call(ctx("agent"), "assistant_decision_close", { id, answer: "x" })).error.code).toBe(-32602);
+  });
+  it("tab answers default to source tab", () => {
+    const store = new DecisionStore(path.join(dir, "t.json"));
+    const d = store.add({ question: "q", options: ["a", "b"], recommended: "a" });
+    expect(store.answer(d.id, "a", false).answer?.source).toBe("tab");
+  });
+});

@@ -84,6 +84,17 @@ export const mailTools: ToolDef[] = [
       return { id: decision.id, options: decision.options };
     },
   },
+  {
+    name: "assistant_decision_close",
+    description:
+      "Close a pending decision the user answered directly in chat: records their answer and marks it answered in chat. Does not message you. Fails on an unknown or already answered id.",
+    roles: ["assistant"],
+    input: z.object({ id: z.string().min(1), answer: z.string().min(1).max(1000) }),
+    async run(input: { id: string; answer: string }, ctx) {
+      const decision = ctx.decisions.close(input.id, input.answer);
+      return { id: decision.id, answer: decision.answer };
+    },
+  },
 ];
 
 export const toolNames = (role: Role) => mailTools.filter((t) => t.roles.includes(role)).map((t) => t.name);
