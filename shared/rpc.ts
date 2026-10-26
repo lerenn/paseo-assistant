@@ -90,3 +90,16 @@ export const decisionCancelRpc = defineRpc({
   input: z.object({ id: z.string() }),
   output: z.object({ decision: decisionSchema }),
 });
+
+/** The user's saved panel width, or null for the default. Kept on the daemon, so it follows the user across reloads and devices. */
+export const uiGetRpc = defineRpc({
+  name: "assistant.ui.get",
+  input: z.object({}),
+  output: z.object({ panelWidth: z.number().nullable() }),
+});
+
+export const uiSetRpc = defineRpc({
+  name: "assistant.ui.set",
+  input: z.object({ panelWidth: z.number().nullable() }),
+  output: z.object({ panelWidth: z.number().nullable() }),
+});

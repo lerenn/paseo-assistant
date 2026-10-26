@@ -45,3 +45,23 @@ export function decisionStatus(d: Decision): DecisionStatus {
 
 /** Still waiting for the user: neither answered nor cancelled. */
 export const isOpen = (d: Decision): boolean => !d.answer && d.cancelledAt === null;
+
+export const SHORT_ID_LENGTH = 8;
+
+/** The short id shown on a card: the first 8 characters of the id. */
+export const shortId = (id: string): string => id.slice(0, SHORT_ID_LENGTH);
+
+/**
+ * Finds a decision by its full id or by a prefix of it (the short id on its card is the first 8 characters).
+ * Throws on no match, and on a prefix that fits several decisions.
+ */
+export function findDecision<T extends { id: string }>(decisions: readonly T[], ref: string): T {
+  const wanted = ref.trim().toLowerCase();
+  if (wanted.length < 4) throw new Error(`"${ref}" is too short for a decision id; use the 8 character id on its card or the full id`);
+  const exact = decisions.find((d) => d.id.toLowerCase() === wanted);
+  if (exact) return exact;
+  const hits = decisions.filter((d) => d.id.toLowerCase().startsWith(wanted));
+  if (hits.length === 0) throw new Error("Unknown decision");
+  if (hits.length > 1) throw new Error(`"${ref}" matches ${hits.length} decisions (${hits.map((d) => shortId(d.id)).join(", ")}); use more characters`);
+  return hits[0];
+}

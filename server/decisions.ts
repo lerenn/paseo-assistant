@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { decisionSchema, isOpen, orderOptions, type Decision } from "../shared/decision";
+import { decisionSchema, findDecision, isOpen, orderOptions, type Decision } from "../shared/decision";
 
 const MAX_DECISIONS = 500;
 
@@ -76,8 +76,7 @@ export class DecisionStore {
 
   /** The user dropped it: it is no longer open and the Assistant is told. Refused once answered or already cancelled. */
   cancel(id: string): Decision {
-    const decision = this.decisions.find((d) => d.id === id);
-    if (!decision) throw new Error("Unknown decision");
+    const decision = findDecision(this.decisions, id);
     if (decision.answer) throw new Error("Decision already answered");
     if (decision.cancelledAt !== null) throw new Error("Decision already cancelled");
     decision.cancelledAt = this.now();
@@ -87,8 +86,7 @@ export class DecisionStore {
 
   /** Records the answer once; a second answer to the same decision is refused. */
   answer(id: string, text: string, other: boolean, source: "tab" | "chat" = "tab"): Decision {
-    const decision = this.decisions.find((d) => d.id === id);
-    if (!decision) throw new Error("Unknown decision");
+    const decision = findDecision(this.decisions, id);
     if (decision.answer) throw new Error("Decision already answered");
     if (decision.cancelledAt !== null) throw new Error("Decision was cancelled");
     if (!other && !decision.options.includes(text)) throw new Error("Not one of the options");
@@ -99,9 +97,8 @@ export class DecisionStore {
 
   /** Records an answer the human gave in chat; one outside the options is kept as free text. */
   close(id: string, text: string): Decision {
-    const decision = this.decisions.find((d) => d.id === id);
-    if (!decision) throw new Error("Unknown decision");
-    return this.answer(id, text, !decision.options.includes(text), "chat");
+    const decision = findDecision(this.decisions, id);
+    return this.answer(decision.id, text, !decision.options.includes(text), "chat");
   }
 }
 

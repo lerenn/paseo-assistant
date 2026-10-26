@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { mailKindSchema } from "../shared/mail";
-import { DECISION_STATUSES, MAX_OPTIONS, MIN_OPTIONS, decisionStatus } from "../shared/decision";
+import { DECISION_STATUSES, MAX_OPTIONS, MIN_OPTIONS, decisionStatus, findDecision, shortId } from "../shared/decision";
 import type { DecisionStore } from "./decisions";
 import type { ItemStore } from "./items";
 import { ManageError, createAgent, createWorkspace, listAgents, listProjects, type ManagePaseo } from "./manage";
@@ -110,14 +110,15 @@ export const mailTools: ToolDef[] = [
   {
     name: "assistant_decision_list",
     description:
-      "List the decisions you queued, with status: pending (unanswered), cancelled (the user dropped it with the ×), answered (answered in the tab, not yet passed to you), delivered (passed to you) or closed (answered in chat). Each has id, question, options, the recommended option (the first), the answer and its source (tab or chat), and timestamps (created, answered, delivered). Filter by status and by created time (since, until: ISO dates or epoch milliseconds). Check it when asked what is waiting and before queueing a decision, to avoid duplicates and catch answers not yet delivered.",
+      "List the decisions you queued, with status: pending (unanswered), cancelled (the user dropped it with the ×), answered (answered in the tab, not yet passed to you), delivered (passed to you) or closed (answered in chat). Each has id, question, options, the recommended option (the first), the answer and its source (tab or chat), and timestamps (created, answered, delivered). Filter by status and by created time (since, until: ISO dates or epoch milliseconds). Each has a shortId (the 8 characters on its card); the decision tools accept it or the full id. Check it when asked what is waiting and before queueing a decision, to avoid duplicates and catch answers not yet delivered.",
     roles: ["assistant"],
     input: z.object({
+      id: z.string().min(1).optional().describe("One decision, by its 8 character short id or the full id."),
       status: z.enum(DECISION_STATUSES).optional(),
       since: z.union([z.string(), z.number()]).optional(),
       until: z.union([z.string(), z.number()]).optional(),
     }),
-    async run(input: { status?: (typeof DECISION_STATUSES)[number]; since?: string | number; until?: string | number }, ctx) {
+    async run(input: { id?: string; status?: (typeof DECISION_STATUSES)[number]; since?: string | number; until?: string | number }, ctx) {
       const at = (v: string | number | undefined): number | null => {
         if (v === undefined) return null;
         const t = typeof v === "number" ? v : Number.isNaN(Number(v)) ? Date.parse(v) : Number(v);
@@ -127,11 +128,14 @@ export const mailTools: ToolDef[] = [
       const since = at(input.since);
       const until = at(input.until);
       const iso = (t: number | null | undefined) => (t == null ? null : new Date(t).toISOString());
-      return ctx.decisions
-        .list()
+      const all = ctx.decisions.list();
+      const one = input.id ? findDecision(all, input.id) : null;
+      return all
+        .filter((d) => !one || d.id === one.id)
         .filter((d) => (!input.status || decisionStatus(d) === input.status) && (since === null || d.askedAt >= since) && (until === null || d.askedAt <= until))
         .map((d) => ({
           id: d.id,
+          shortId: shortId(d.id),
           question: d.question,
           options: d.options,
           recommended: d.options[0],
@@ -151,7 +155,7 @@ export const mailTools: ToolDef[] = [
     description:
       "Close a pending decision the user answered directly in chat: records their answer and marks it answered in chat. Does not message you. Fails on an unknown or already answered id.",
     roles: ["assistant"],
-    input: z.object({ id: z.string().min(1), answer: z.string().min(1).max(1000) }),
+    input: z.object({ id: z.string().min(1).describe("Short (8 character) or full decision id."), answer: z.string().min(1).max(1000) }),
     async run(input: { id: string; answer: string }, ctx) {
       const decision = ctx.decisions.close(input.id, input.answer);
       return { id: decision.id, answer: decision.answer };

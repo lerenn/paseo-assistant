@@ -8,6 +8,7 @@ import { isOpen } from "../shared/decision";
 import { decisionAnswerRpc, decisionCancelRpc, decisionListRpc } from "../shared/rpc";
 import { UndoQueue } from "./undo";
 import { cardStyle } from "./card";
+import { IdChip } from "./id-chip";
 
 export const DECISIONS_KEY = ["assistant", "decisions"];
 const REFRESH_MS = 10_000;
@@ -38,7 +39,10 @@ function OpenDecision({ theme, decision, busy, onAnswer, onCancel }: { theme: Pl
       <Pressable accessibilityRole="button" accessibilityLabel="Cancel this decision" onPress={onCancel} hitSlop={8} style={{ position: "absolute", top: 6, right: 8, width: 24, height: 24, alignItems: "center", justifyContent: "center", zIndex: 1 }}>
         <Text style={{ color: theme.colors.foregroundMuted, fontSize: 18, lineHeight: 20 }}>×</Text>
       </Pressable>
-      <Text style={{ color: theme.colors.foreground, fontSize: 14, fontWeight: "600", paddingRight: 28 }}>{decision.question}</Text>
+      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, paddingRight: 28 }}>
+        <IdChip theme={theme} id={decision.id} />
+        <Text style={{ color: theme.colors.foreground, fontSize: 14, fontWeight: "600", flexShrink: 1 }}>{decision.question}</Text>
+      </View>
       {decision.options.map((option, i) => (
         <Pressable key={option} accessibilityRole="button" disabled={busy} onPress={() => onAnswer(option, false)} style={button}>
           <Text style={{ color: theme.colors.foreground, fontSize: 13 }}>
@@ -116,7 +120,10 @@ export function DecisionsView({ theme, decisions }: { theme: PluginTheme; decisi
           {showAnswered
             ? answered.map((d) => (
                 <View key={d.id} style={[cardStyle(theme, { muted: true }), { gap: 2 }]}>
-                  <Text style={{ color: theme.colors.foreground, fontSize: 13 }}>{d.question}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+                    <IdChip theme={theme} id={d.id} />
+                    <Text style={{ color: theme.colors.foreground, fontSize: 13, flexShrink: 1 }}>{d.question}</Text>
+                  </View>
                   <Text style={{ color: theme.colors.foregroundMuted, fontSize: 12 }}>
                     {d.cancelledAt !== null
                       ? `Cancelled · ${new Date(d.cancelledAt).toLocaleString()}`

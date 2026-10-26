@@ -3,17 +3,16 @@ import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import * as hostUi from "@getpaseo/plugin/client/ui";
 import { Icon } from "@getpaseo/plugin/client/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState, type ComponentType } from "react";
-import { Pressable, Text, View } from "react-native";
+import { useMemo, useRef, useState, type ComponentType } from "react";
+import { PanResponder, Pressable, Text, View, useWindowDimensions } from "react-native";
 import { isOpen } from "../shared/decision";
-import { ensureRpc, resetRpc } from "../shared/rpc";
+import { ensureRpc, resetRpc, uiGetRpc, uiSetRpc } from "../shared/rpc";
 import { DecisionsBadge, DecisionsView, useDecisions } from "./decisions";
 import { ItemsView, useItems } from "./items";
 import { MailboxView, useMail } from "./mailbox";
-import { effectiveTab, mailHint, panelLayout, panelMemory, panelTabs, toggleBadge, type PanelTab } from "./panel";
+import { DEFAULT_PANEL_WIDTH, clampPanelWidth, effectiveTab, mailHint, panelLayout, panelMemory, panelTabs, toggleBadge, widthAfterDrag, type PanelTab } from "./panel";
 
 const SESSION_KEY = ["assistant", "session"];
-const PANEL_WIDTH = 380;
 
 /** AgentChat comes from the fork; other hosts lack it and get a button that opens the conversation instead. */
 const AgentChat = (hostUi as { AgentChat?: ComponentType<{ agentId: string }> }).AgentChat;
@@ -32,6 +31,34 @@ export function AssistantScreen(props: PluginScreenProps) {
     panelMemory.tab = value;
     setTabState(value);
   };
+  // The panel's width: dragged live, saved on release, restored from the daemon.
+  const { width: windowWidth } = useWindowDimensions();
+  const getUi = useRpc(uiGetRpc);
+  const setUi = useRpc(uiSetRpc);
+  const savedWidth = useQuery({ queryKey: ["assistant", "ui"], queryFn: () => getUi({}), staleTime: Infinity }).data?.panelWidth ?? null;
+  const [dragWidth, setDragWidth] = useState<number | null>(null);
+  const panelWidth = clampPanelWidth(dragWidth ?? savedWidth ?? DEFAULT_PANEL_WIDTH, windowWidth);
+  const dragStart = useRef(panelWidth);
+  const latest = useRef({ width: panelWidth, windowWidth });
+  latest.current = { width: panelWidth, windowWidth };
+  const resizer = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: () => {
+          dragStart.current = latest.current.width;
+        },
+        onPanResponderMove: (_e, g) => setDragWidth(widthAfterDrag(dragStart.current, g.dx, latest.current.windowWidth)),
+        onPanResponderRelease: (_e, g) => {
+          const width = widthAfterDrag(dragStart.current, g.dx, latest.current.windowWidth);
+          setDragWidth(width);
+          void setUi({ panelWidth: width }).then(() => queryClient.setQueryData(["assistant", "ui"], { panelWidth: width }));
+        },
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
   const mail = useMail();
   const mails = mail.data?.mails ?? [];
   // While the first answer is pending the tab counts as available; once Agents Mail is missing or silent it is not.
@@ -103,7 +130,17 @@ export function AssistantScreen(props: PluginScreenProps) {
   );
 
   const panel = (
-    <View style={{ width: mode === "side" ? PANEL_WIDTH : undefined, flex: mode === "side" ? undefined : 1, borderLeftWidth: mode === "side" ? 1 : 0, borderLeftColor: theme.colors.border }}>
+    <View style={{ width: mode === "side" ? panelWidth : undefined, flex: mode === "side" ? undefined : 1, borderLeftWidth: mode === "side" ? 1 : 0, borderLeftColor: theme.colors.border }}>
+      {mode === "side" ? (
+        <View
+          {...resizer.panHandlers}
+          accessibilityRole="adjustable"
+          accessibilityLabel="Resize the side panel"
+          style={[{ position: "absolute", left: -5, top: 0, bottom: 0, width: 10, zIndex: 2, alignItems: "center", justifyContent: "center" }, { cursor: "col-resize" } as object]}
+        >
+          <View style={{ width: 4, height: 36, borderRadius: 2, backgroundColor: theme.colors.border }} />
+        </View>
+      ) : null}
       <View style={{ flexDirection: "row", paddingHorizontal: 12, paddingVertical: 6, gap: 6, flexWrap: "wrap" }}>
         {panelTabs(counts, mailAvailable, mailHint(mail.data?.availability ?? "ok") ?? undefined).map((t) => (
           <Pressable

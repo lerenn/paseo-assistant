@@ -285,3 +285,48 @@ describe("cancelling a decision (the × on its card)", () => {
     expect((await list({ status: "pending" })).map((d) => d.id)).toEqual([open.id]);
   });
 });
+
+describe("short decision ids", () => {
+  it("shortId is the first 8 characters; findDecision takes the full id, a prefix or other casing, and refuses short, unknown and ambiguous ones", async () => {
+    const { findDecision, shortId } = await import("../shared/decision");
+    const ds = [{ id: "b1a3a95d-0000-4000-8000-000000000001" }, { id: "b1a3ffff-0000-4000-8000-000000000002" }, { id: "c0ffee00-0000-4000-8000-000000000003" }];
+    expect(shortId(ds[0].id)).toBe("b1a3a95d");
+    expect(findDecision(ds, ds[0].id)).toBe(ds[0]);
+    expect(findDecision(ds, "b1a3a95d")).toBe(ds[0]);
+    expect(findDecision(ds, "C0FFEE00")).toBe(ds[2]);
+    expect(() => findDecision(ds, "b1a")).toThrow(/too short/);
+    expect(() => findDecision(ds, "b1a3")).toThrow(/matches 2 decisions \(b1a3a95d, b1a3ffff\)/);
+    expect(() => findDecision(ds, "deadbeef")).toThrow(/Unknown/);
+  });
+
+  it("the store answers, closes and cancels by short id", () => {
+    const store = new DecisionStore(path.join(dir, "s.json"));
+    const a = store.add(input);
+    const b = store.add({ ...input, question: "B?" });
+    const c = store.add({ ...input, question: "C?" });
+    expect(store.answer(a.id.slice(0, 8), "Yes", false).answer?.text).toBe("Yes");
+    expect(store.close(b.id.slice(0, 8), "No").answer?.source).toBe("chat");
+    expect(store.cancel(c.id.slice(0, 8)).cancelledAt).not.toBeNull();
+  });
+
+  it("the decision tools accept the short id: close, and list one decision; the list shows shortId", async () => {
+    const c: ToolContext = {
+      capability: { role: "assistant" },
+      agentsMail: new AgentsMailClient(path.join(dir, "none.json")),
+      decisions: new DecisionStore(path.join(dir, "t.json")),
+      items: new ItemStore(path.join(dir, "i.json")),
+      paseo: () => null,
+      renew: async () => ({ agentId: "x" }),
+      nameOf: async () => "x",
+    };
+    const a = c.decisions.add(input);
+    c.decisions.add({ ...input, question: "Other?" });
+    const call = async (name: string, args: unknown) => (await new McpServer(mailTools).handle({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }, c)) as any;
+    const one = JSON.parse((await call("assistant_decision_list", { id: a.id.slice(0, 8) })).result.content[0].text);
+    expect(one).toHaveLength(1);
+    expect(one[0]).toMatchObject({ id: a.id, shortId: a.id.slice(0, 8), question: "Ship it?" });
+    expect((await call("assistant_decision_close", { id: a.id.slice(0, 8), answer: "Yes" })).result.isError).toBeUndefined();
+    expect(c.decisions.list().find((d) => d.id === a.id)?.answer?.text).toBe("Yes");
+    expect((await call("assistant_decision_list", { id: "zzzzzzzz" })).result.isError).toBe(true);
+  });
+});
