@@ -110,9 +110,4 @@ export class AgentsMailClient {
   async sendAsAgent(o: { agentId: string; name: string; subject: string; body: string; kind: string }): Promise<void> {
     await this.call("POST", "/api/mails", { to: "@assistant", subject: o.subject, body: o.body, kind: o.kind, asAgent: { agentId: o.agentId, name: o.name } });
   }
-
-  async importMails(mails: Mail[]): Promise<number> {
-    const body = mails.map((m) => ({ id: m.id, agentId: m.agentId, agentName: m.agentName, subject: m.subject, body: m.body, kind: m.kind, at: m.at, read: m.read }));
-    return (await this.call<{ imported: number }>("POST", "/api/import", { mailbox: ASSISTANT_MAILBOX, mails: body })).imported;
-  }
 }

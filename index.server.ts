@@ -6,7 +6,6 @@ import { MailHttp } from "./server/http";
 import { DecisionStore, cancelNudge, decisionNudge } from "./server/decisions";
 import { ItemStore } from "./server/items";
 import { AgentsMailClient, AgentsMailError } from "./server/agentsmail";
-import { migrateLegacyMail } from "./server/migrate";
 import { ShimUsageStore, describeReport, shimReport } from "./server/shims";
 import { Delivery, PendingDeliveries, dropStaleOnce, statusOf, titleOf } from "./server/delivery";
 import { McpServer } from "./server/mcp";
@@ -27,22 +26,8 @@ export default function contribute(server: PluginServerContext) {
   const ready = settings.read().then(apply);
   const unsubscribeSettings = settings.subscribe(apply);
 
-  // Mail lives in the Agents Mail plugin; the old mailbox file is imported there once.
+  // Mail lives in the Agents Mail plugin; the Assistant stores none of its own.
   const agentsMail = new AgentsMailClient();
-  const legacyMailbox = process.env.ASSISTANT_MAILBOX ?? join(dataDir, "mailbox.json");
-  let lastMigrationTry = 0;
-  const migrate = async (): Promise<void> => {
-    if (Date.now() - lastMigrationTry < 30_000) return;
-    lastMigrationTry = Date.now();
-    try {
-      const n = await migrateLegacyMail(legacyMailbox, agentsMail);
-      if (n !== null) console.log(`assistant: moved ${n} mails to Agents Mail`);
-    } catch (error) {
-      // Not installed yet, or not answering: the file stays and the next list tries again.
-      if (!(error instanceof AgentsMailError)) console.error("assistant: mail import failed", error);
-    }
-  };
-  void migrate();
   const shimUsage = new ShimUsageStore(process.env.ASSISTANT_SHIM_USAGE ?? join(dataDir, "shim-usage.json"));
   const items = new ItemStore(process.env.ASSISTANT_ITEMS ?? join(dataDir, "items.json"));
   const decisions = new DecisionStore(process.env.ASSISTANT_DECISIONS ?? join(dataDir, "decisions.json"));
@@ -143,7 +128,7 @@ export default function contribute(server: PluginServerContext) {
   /** Who still holds the old mail tool; the answer to "can the forwarders go". */
   const reportShims = async () => {
     if (!paseo) return null;
-    const { entries } = await (paseo as unknown as import("./server/manage").ManagePaseo).agents.list({ filter: { includeArchived: false } });
+    const { entries } = await (paseo as unknown as import("./server/manage").ManagePaseo).agents.list({ filter: { includeArchived: false, includeBackground: true } });
     const live = (entries as { agent: { id: string } }[]).map((e) => e.agent.id);
     return shimReport(tokens.agentIds(), live, shimUsage.read());
   };
@@ -169,7 +154,6 @@ export default function contribute(server: PluginServerContext) {
   server.handle(mailListRpc, async () => {
     const state = await agentsMail.availability();
     if (!state.available) return { availability: state.reason, mails: [] };
-    await migrate();
     try {
       return { availability: "ok" as const, mails: await agentsMail.list() };
     } catch (error) {
