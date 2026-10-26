@@ -59,6 +59,7 @@ describe("item tools", () => {
     agentsMail: new AgentsMailClient(path.join(dir, "none.json")),
     decisions: new DecisionStore(path.join(dir, "d.json")),
     items: new ItemStore(path.join(dir, "i.json")),
+    paseo: () => null,
     nameOf: async () => "x",
   });
   const call = (c: ToolContext, name: string, args: unknown) =>

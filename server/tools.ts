@@ -3,6 +3,7 @@ import { mailKindSchema } from "../shared/mail";
 import { DECISION_STATUSES, MAX_OPTIONS, MIN_OPTIONS, decisionStatus } from "../shared/decision";
 import type { DecisionStore } from "./decisions";
 import type { ItemStore } from "./items";
+import { ManageError, createAgent, createWorkspace, listAgents, listProjects, type ManagePaseo } from "./manage";
 import { AgentsMailError, type AgentsMailClient } from "./agentsmail";
 import type { Capability, Role } from "./tokens";
 
@@ -12,11 +13,19 @@ export interface ToolContext {
   agentsMail: AgentsMailClient;
   decisions: DecisionStore;
   items: ItemStore;
+  /** The Paseo SDK, once a hook or RPC has handed it over; null before. */
+  paseo(): ManagePaseo | null;
   /** Best-effort title of an agent; falls back to its id. */
   nameOf(agentId: string, hint?: string): Promise<string>;
 }
 
 const DEPRECATED = "Deprecated: the Agents Mail plugin replaces this tool; use mail_send(to=\"@assistant\", ...), mail_list and mail_read.";
+
+function needPaseo(ctx: ToolContext): ManagePaseo {
+  const paseo = ctx.paseo();
+  if (!paseo) throw new ManageError("The Paseo API is not available yet; try again in a moment.");
+  return paseo;
+}
 
 /** Runs a call to Agents Mail and turns "not there" into a message the agent can act on. */
 async function viaAgentsMail<T>(run: () => Promise<T>): Promise<T> {
@@ -170,6 +179,56 @@ export const mailTools: ToolDef[] = [
     async run(input: { id: string; note?: string }, ctx) {
       const item = ctx.items.close(input.id, input.note);
       return { id: item.id, closed: true };
+    },
+  },
+  {
+    name: "assistant_projects_list",
+    description: "List the Paseo projects (id, name, root path) with their live workspaces, to pick a workspace or the project for a new one.",
+    roles: ["assistant"],
+    input: z.object({}),
+    async run(_input: object, ctx) {
+      return listProjects(needPaseo(ctx));
+    },
+  },
+  {
+    name: "assistant_workspace_create",
+    description:
+      "Create a workspace in a project (by id, name or root path), in a Kubernetes Runtime pod by default (runtime \"local\" runs it on the daemon, only for daemon work). It is made by the plugin, not as your child, and outlives your session. Returns the workspace id for assistant_agent_create.",
+    roles: ["assistant"],
+    input: z.object({
+      project: z.string().min(1),
+      title: z.string().min(1).max(100),
+      runtime: z.enum(["kubernetes", "local"]).default("kubernetes"),
+      slug: z.string().min(1).max(40).optional(),
+    }),
+    async run(input: { project: string; title: string; runtime: "kubernetes" | "local"; slug?: string }, ctx) {
+      return createWorkspace(needPaseo(ctx), input);
+    },
+  },
+  {
+    name: "assistant_agent_create",
+    description:
+      "Create a TOP-LEVEL agent in a workspace (not your subagent: it keeps running after your session and stays manageable with the Paseo tools). It is labelled paseo.created-by=assistant. Give a self-contained prompt; provider defaults to claude/claude-sonnet-5-5. Do not use the Paseo create_agent tool for this: it would make a subagent.",
+    roles: ["assistant"],
+    input: z.object({
+      workspaceId: z.string().min(1),
+      title: z.string().min(1).max(100),
+      prompt: z.string().min(1).max(20_000),
+      provider: z.string().min(1).optional(),
+      mode: z.string().min(1).optional(),
+      labels: z.record(z.string(), z.string()).optional(),
+    }),
+    async run(input: { workspaceId: string; title: string; prompt: string; provider?: string; mode?: string; labels?: Record<string, string> }, ctx) {
+      return createAgent(needPaseo(ctx), input);
+    },
+  },
+  {
+    name: "assistant_agents_list",
+    description: "List live agents. By default only the ones you created (label paseo.created-by=assistant); pass createdByAssistant=false for all. Use it to find what you made and to check the bypassPermissions rule.",
+    roles: ["assistant"],
+    input: z.object({ createdByAssistant: z.boolean().default(true) }),
+    async run(input: { createdByAssistant: boolean }, ctx) {
+      return listAgents(needPaseo(ctx), input);
     },
   },
 ];

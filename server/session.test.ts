@@ -173,10 +173,10 @@ describe("AssistantSession", () => {
 });
 
 describe("ASSISTANT_PROMPT", () => {
-  it("stays read-only and degrades without the optional tools", () => {
+  it("manages agents within guardrails and degrades without the optional tools", () => {
     expect(ASSISTANT_PROMPT).toContain("send_agent_prompt");
     expect(ASSISTANT_PROMPT).toContain("on the human's behalf");
-    expect(ASSISTANT_PROMPT).toContain("Nothing beyond messaging");
+    expect(ASSISTANT_PROMPT).toContain("Do not edit files and never answer an agent's permission request");
     expect(ASSISTANT_PROMPT).toContain("inbox_ask");
     expect(ASSISTANT_PROMPT).toContain("exist only if their plugins are installed");
   });
@@ -195,19 +195,15 @@ describe("inbox answers", () => {
 });
 
 describe("tools", () => {
-  it("lets the Assistant message agents and nothing that changes them", () => {
+  it("lets the Assistant message and manage agents, but not kill them, edit files, answer permissions or create them as subagents", () => {
     expect(ALLOWED_TOOLS).toContain("mcp__paseo__send_agent_prompt");
-    for (const mutating of [
-      "create_agent",
-      "archive_agent",
-      "kill_agent",
-      "cancel_agent",
-      "update_agent",
-      "set_agent_mode",
-      "respond_to_permission",
-    ]) {
-      expect(DISALLOWED_TOOLS).toContain(`mcp__paseo__${mutating}`);
-      expect(ALLOWED_TOOLS).not.toContain(`mcp__paseo__${mutating}`);
+    for (const managed of ["archive_agent", "cancel_agent", "update_agent", "set_agent_mode"]) {
+      expect(ALLOWED_TOOLS).toContain(`mcp__paseo__${managed}`);
+      expect(DISALLOWED_TOOLS).not.toContain(`mcp__paseo__${managed}`);
+    }
+    for (const off of ["create_agent", "create_workspace", "kill_agent", "respond_to_permission"]) {
+      expect(DISALLOWED_TOOLS).toContain(`mcp__paseo__${off}`);
+      expect(ALLOWED_TOOLS).not.toContain(`mcp__paseo__${off}`);
     }
   });
 });
