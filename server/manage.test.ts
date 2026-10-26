@@ -54,7 +54,7 @@ describe("managing agents", () => {
       "never contact people (Slack, email, review requests)",
       "never answer an agent's permission request",
       "asking the owning coordinator",
-      "Log every action as an Open items note",
+      "Log every action as a Current Tasks note",
     ]) {
       expect(ASSISTANT_PROMPT, rule).toContain(rule);
     }

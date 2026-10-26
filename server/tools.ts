@@ -95,7 +95,7 @@ export const mailTools: ToolDef[] = [
   {
     name: "assistant_decision_add",
     description:
-      "Queue a decision for the human, who answers whenever they like in the Decisions tab. Give a question, 2 to 4 distinct options and the recommended one (it must be one of the options). The human can also answer in free text. Their answer comes back to you as a message with the decision id, question and answer.",
+      "Queue a decision for the human, who answers whenever they like in the Your Decisions tab. Give a question, 2 to 4 distinct options and the recommended one (it must be one of the options). The human can also answer in free text. Their answer comes back to you as a message with the decision id, question and answer.",
     roles: ["assistant"],
     input: z.object({
       question: z.string().min(1).max(1000),
@@ -164,7 +164,7 @@ export const mailTools: ToolDef[] = [
   {
     name: "assistant_item_add",
     description:
-      "Track an open item. owner \"agent\" (default): something the human is waiting on but does not have to decide, for example \"waiting for the cluster rework PR 3\" or \"pin PR pending restart\". It shows in the Open items tab. owner \"human\": something the human must DO (merge a PR, run a command, enter a Secret, sign in): it shows in the Your actions tab, where detail is rendered as markdown with copyable code blocks, so write numbered steps and put commands in fenced code blocks. For a real choice use assistant_decision_add instead. Title is one line; detail (up to 8000 characters) and an http(s) link are optional.",
+      "Track an open item. owner \"agent\" (default): something the human is waiting on but does not have to decide, for example \"waiting for the cluster rework PR 3\" or \"pin PR pending restart\". It shows in the Current Tasks tab. owner \"human\": something the human must DO (merge a PR, run a command, enter a Secret, sign in): it shows in the Your Actions tab, where detail is rendered as markdown with copyable code blocks, so write numbered steps and put commands in fenced code blocks. For a real choice use assistant_decision_add instead. Title is one line; detail (up to 8000 characters) and an http(s) link are optional.",
     roles: ["assistant"],
     input: z.object({ title: z.string().min(1).max(200), detail: z.string().max(8000).optional(), link: z.string().max(500).optional(), owner: z.enum(["human", "agent"]).default("agent").describe("human: something the user must DO (merge, run a command, enter a Secret, sign in); agent: a wait on an agent or a process.") }),
     async run(input: { title: string; detail?: string; link?: string; owner: "human" | "agent" }, ctx) {

@@ -124,7 +124,7 @@ describe("item owner (Your actions)", () => {
 
   it("the prompt sends everything the human must do to owner human, to be closed when done", async () => {
     const { ASSISTANT_PROMPT } = await import("./prompt");
-    expect(ASSISTANT_PROMPT).toContain("## Your actions");
+    expect(ASSISTANT_PROMPT).toContain("## Your Actions");
     for (const text of ['owner "human"', "merge a PR, run a command, enter a Secret, sign in", "fenced code block", "Close it with assistant_item_close", "what do I need to do?"]) {
       expect(ASSISTANT_PROMPT, text).toContain(text);
     }

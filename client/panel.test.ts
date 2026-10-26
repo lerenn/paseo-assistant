@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { MAIL_HINT, effectiveTab, mailHint, panelLayout, panelTabs, toggleBadge } from "./panel";
+import { DEFAULT_TAB, MAIL_HINT, effectiveTab, mailHint, panelLayout, panelTabs, toggleBadge } from "./panel";
 
 describe("panelTabs", () => {
-  it("lists Mailbox, Decisions and Open items with their counts, empty at zero", () => {
+  it("lists Current Tasks, Your Decisions, Your Actions and Mailbox, in that order, with their counts, empty at zero", () => {
     expect(panelTabs({ unreadMail: 0, openDecisions: 0, yourActions: 0, openItems: 0 })).toEqual([
+      { id: "items", label: "Current Tasks", badge: "", disabled: false, hint: null },
+      { id: "decisions", label: "Your Decisions", badge: "", disabled: false, hint: null },
+      { id: "actions", label: "Your Actions", badge: "", disabled: false, hint: null },
       { id: "mailbox", label: "Mailbox", badge: "", disabled: false, hint: null },
-      { id: "decisions", label: "Decisions", badge: "", disabled: false, hint: null },
-      { id: "actions", label: "Your actions", badge: "", disabled: false, hint: null },
-      { id: "items", label: "Open items", badge: "", disabled: false, hint: null },
     ]);
-    expect(panelTabs({ unreadMail: 3, openDecisions: 2, yourActions: 4, openItems: 120 }).map((t) => t.badge)).toEqual(["3", "2", "4", "99+"]);
+    expect(panelTabs({ unreadMail: 3, openDecisions: 2, yourActions: 4, openItems: 120 }).map((t) => t.badge)).toEqual(["99+", "2", "4", "3"]);
   });
   it("has no Chat tab: the chat is always shown", () => {
     expect(panelTabs({ unreadMail: 0, openDecisions: 0, yourActions: 0, openItems: 0 }).map((t) => t.id)).not.toContain("chat");
@@ -36,13 +36,13 @@ describe("Mailbox tab without Agents Mail", () => {
   const counts = { unreadMail: 5, openDecisions: 2, yourActions: 3, openItems: 1 };
   it("is disabled with the hint and no count, while the other tabs work", () => {
     const tabs = panelTabs(counts, false);
-    expect(tabs[0]).toEqual({ id: "mailbox", label: "Mailbox", badge: "", disabled: true, hint: MAIL_HINT });
+    expect(tabs[3]).toEqual({ id: "mailbox", label: "Mailbox", badge: "", disabled: true, hint: MAIL_HINT });
     expect(MAIL_HINT).toBe("Agents Mail not installed");
-    expect(tabs.slice(1).every((t) => !t.disabled && t.hint === null)).toBe(true);
-    expect(tabs.slice(1).map((t) => t.badge)).toEqual(["2", "3", "1"]);
+    expect(tabs.slice(0, 3).every((t) => !t.disabled && t.hint === null)).toBe(true);
+    expect(tabs.slice(0, 3).map((t) => t.badge)).toEqual(["1", "2", "3"]);
   });
-  it("falls back to Decisions when the wanted tab is the disabled Mailbox", () => {
-    expect(effectiveTab("mailbox", false)).toBe("decisions");
+  it("falls back to Current Tasks, the default, when the wanted tab is the disabled Mailbox", () => {
+    expect(effectiveTab("mailbox", false)).toBe("items");
     expect(effectiveTab("mailbox", true)).toBe("mailbox");
     expect(effectiveTab("items", false)).toBe("items");
   });
@@ -95,10 +95,19 @@ describe("panel width clamping", () => {
 
 import { itemCounts } from "./panel";
 
-describe("itemCounts (Your actions and Open items)", () => {
+describe("itemCounts (Your Actions and Current Tasks)", () => {
   const item = (owner: "human" | "agent" | undefined, closed = false) => ({ owner: owner as "human" | "agent", closed: closed ? { at: 1, note: null } : null });
   it("splits open items by owner, ignores closed ones, and counts an item without an owner as the agent's", () => {
     expect(itemCounts([item("human"), item("human"), item("agent"), item(undefined), item("human", true), item("agent", true)])).toEqual({ yourActions: 2, openItems: 2 });
     expect(itemCounts([])).toEqual({ yourActions: 0, openItems: 0 });
+  });
+});
+
+describe("default tab", () => {
+  it("is always Current Tasks, and nothing in the tab list or the fallback switches away from it by itself", () => {
+    expect(DEFAULT_TAB).toBe("items");
+    expect(panelTabs({ unreadMail: 9, openDecisions: 9, yourActions: 9, openItems: 0 })[0].id).toBe(DEFAULT_TAB);
+    expect(effectiveTab(DEFAULT_TAB, true)).toBe(DEFAULT_TAB);
+    expect(effectiveTab(DEFAULT_TAB, false)).toBe(DEFAULT_TAB);
   });
 });
