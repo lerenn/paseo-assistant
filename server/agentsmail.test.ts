@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentsMailClient, toMail } from "./agentsmail";
-import { MailStore } from "./mailbox";
 import { migrateLegacyMail } from "./migrate";
 import { kindLabel } from "../client/mail-format";
 
@@ -45,12 +44,13 @@ describe("mail mapping", () => {
   });
 });
 
+const writeLegacy = (file: string, mails: { agentId: string; agentName: string; subject: string; kind: string }[]) =>
+  writeFileSync(file, JSON.stringify(mails.map((m, i) => ({ ...m, id: `m${i}`, body: "b", at: i + 1, read: false }))));
+
 describe("migrateLegacyMail", () => {
   const file = () => path.join(dir, "mailbox.json");
   it("imports the old mailbox once and renames the file", async () => {
-    const store = new MailStore(file());
-    store.add({ agentId: "a1", agentName: "A", subject: "one", body: "b", kind: "start" });
-    store.add({ agentId: "a2", agentName: "B", subject: "two", body: "b", kind: "done" });
+    writeLegacy(file(), [{ agentId: "a1", agentName: "A", subject: "one", kind: "start" }, { agentId: "a2", agentName: "B", subject: "two", kind: "done" }]);
     const importMails = vi.fn(async (m: unknown[]) => m.length);
     const client = { importMails } as unknown as AgentsMailClient;
     expect(await migrateLegacyMail(file(), client)).toBe(2);
@@ -68,7 +68,7 @@ describe("migrateLegacyMail", () => {
     expect((importMails.mock.calls[0][0] as { kind: string }[]).map((m) => m.kind).sort()).toEqual(["blocked", "blocked", "pr"]);
   });
   it("keeps the file when Agents Mail is not there, so the next try imports it", async () => {
-    new MailStore(file()).add({ agentId: "a1", agentName: "A", subject: "one", body: "b", kind: "start" });
+    writeLegacy(file(), [{ agentId: "a1", agentName: "A", subject: "one", kind: "start" }]);
     const client = { importMails: async () => { throw new Error("down"); } } as unknown as AgentsMailClient;
     await expect(migrateLegacyMail(file(), client)).rejects.toThrow("down");
     expect(existsSync(file())).toBe(true);
