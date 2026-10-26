@@ -1,10 +1,10 @@
 import { useRpc } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import type { Decision } from "../shared/decision";
-import { isOpen } from "../shared/decision";
+import { decisionStatus, isOpen } from "../shared/decision";
 import { decisionAnswerRpc, decisionCancelRpc, decisionListRpc } from "../shared/rpc";
 import { UndoQueue } from "./undo";
 import { cardStyle } from "./card";
@@ -30,19 +30,32 @@ export function useDecisions() {
   return useQuery({ queryKey: DECISIONS_KEY, queryFn: () => list({}), refetchInterval: REFRESH_MS });
 }
 
+/** The header row of every card: the id chip on the left, something small (the × , Undo, the state) on the right. */
+export function CardHeader({ theme, id, right }: { theme: PluginTheme; id: string; right?: ReactNode }) {
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 24 }}>
+      <IdChip theme={theme} id={id} />
+      {right ?? null}
+    </View>
+  );
+}
+
 function OpenDecision({ theme, decision, busy, onAnswer, onCancel }: { theme: PluginTheme; decision: Decision; busy: boolean; onAnswer: (answer: string, other: boolean) => void; onCancel: () => void }) {
   const [other, setOther] = useState(false);
   const [text, setText] = useState("");
   const button = { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: theme.colors.surface2 };
   return (
     <View style={cardStyle(theme)}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Cancel this decision" onPress={onCancel} hitSlop={8} style={{ position: "absolute", top: 6, right: 8, width: 24, height: 24, alignItems: "center", justifyContent: "center", zIndex: 1 }}>
-        <Text style={{ color: theme.colors.foregroundMuted, fontSize: 18, lineHeight: 20 }}>×</Text>
-      </Pressable>
-      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, paddingRight: 28 }}>
-        <IdChip theme={theme} id={decision.id} />
-        <Text style={{ color: theme.colors.foreground, fontSize: 14, fontWeight: "600", flexShrink: 1 }}>{decision.question}</Text>
-      </View>
+      <CardHeader
+        theme={theme}
+        id={decision.id}
+        right={
+          <Pressable accessibilityRole="button" accessibilityLabel="Cancel this decision" onPress={onCancel} hitSlop={8} style={{ width: 24, height: 24, alignItems: "center", justifyContent: "center" }}>
+            <Text style={{ color: theme.colors.foregroundMuted, fontSize: 18, lineHeight: 20 }}>×</Text>
+          </Pressable>
+        }
+      />
+      <Text style={{ color: theme.colors.foreground, fontSize: 14, fontWeight: "600" }}>{decision.question}</Text>
       {decision.options.map((option, i) => (
         <Pressable key={option} accessibilityRole="button" disabled={busy} onPress={() => onAnswer(option, false)} style={button}>
           <Text style={{ color: theme.colors.foreground, fontSize: 13 }}>
@@ -100,11 +113,17 @@ export function DecisionsView({ theme, decisions }: { theme: PluginTheme; decisi
       {answer.error ? <Text style={{ color: theme.colors.foreground, padding: 16 }}>Could not send the answer: {answer.error.message}</Text> : null}
       {open.map((d) =>
         waiting.includes(d.id) ? (
-          <View key={d.id} style={[cardStyle(theme, { muted: true }), { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
-            <Text style={{ color: theme.colors.foregroundMuted, fontSize: 13, flexShrink: 1 }}>Cancelling: {d.question}</Text>
-            <Pressable accessibilityRole="button" onPress={() => cancelQueue.undo(d.id)} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: theme.colors.surface2 }}>
-              <Text style={{ color: theme.colors.foreground, fontSize: 13 }}>Undo</Text>
-            </Pressable>
+          <View key={d.id} style={cardStyle(theme, { muted: true })}>
+            <CardHeader
+              theme={theme}
+              id={d.id}
+              right={
+                <Pressable accessibilityRole="button" onPress={() => cancelQueue.undo(d.id)} style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: theme.colors.surface2 }}>
+                  <Text style={{ color: theme.colors.foreground, fontSize: 13 }}>Undo</Text>
+                </Pressable>
+              }
+            />
+            <Text style={{ color: theme.colors.foregroundMuted, fontSize: 13 }}>Cancelling: {d.question}</Text>
           </View>
         ) : (
           <OpenDecision key={d.id} theme={theme} decision={d} busy={answer.isPending} onAnswer={(a, other) => answer.mutate({ id: d.id, answer: a, other })} onCancel={() => cancelQueue.start(d.id)} />
@@ -119,11 +138,9 @@ export function DecisionsView({ theme, decisions }: { theme: PluginTheme; decisi
           </Pressable>
           {showAnswered
             ? answered.map((d) => (
-                <View key={d.id} style={[cardStyle(theme, { muted: true }), { gap: 2 }]}>
-                  <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
-                    <IdChip theme={theme} id={d.id} />
-                    <Text style={{ color: theme.colors.foreground, fontSize: 13, flexShrink: 1 }}>{d.question}</Text>
-                  </View>
+                <View key={d.id} style={[cardStyle(theme, { muted: true }), { gap: 4 }]}>
+                  <CardHeader theme={theme} id={d.id} right={<Text style={{ color: theme.colors.foregroundMuted, fontSize: 11 }}>{decisionStatus(d)}</Text>} />
+                  <Text style={{ color: theme.colors.foreground, fontSize: 13 }}>{d.question}</Text>
                   <Text style={{ color: theme.colors.foregroundMuted, fontSize: 12 }}>
                     {d.cancelledAt !== null
                       ? `Cancelled · ${new Date(d.cancelledAt).toLocaleString()}`
