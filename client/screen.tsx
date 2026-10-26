@@ -1,7 +1,8 @@
 import { useRpc } from "@getpaseo/plugin/client";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
+import * as hostUi from "@getpaseo/plugin/client/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ComponentType } from "react";
 import { Pressable, Text, View } from "react-native";
 import { ensureRpc, resetRpc } from "../shared/rpc";
 import { DecisionsView, useDecisions } from "./decisions";
@@ -9,6 +10,9 @@ import { countBadge, unreadBadge } from "./mail-format";
 import { MailboxView, useMail } from "./mailbox";
 
 const SESSION_KEY = ["assistant", "session"];
+
+/** AgentChat comes from the fork; other hosts lack it and get a button that opens the conversation instead. */
+const AgentChat = (hostUi as { AgentChat?: ComponentType<{ agentId: string }> }).AgentChat;
 
 type Tab = "chat" | "mailbox" | "decisions";
 
@@ -84,6 +88,8 @@ export function AssistantScreen(props: PluginScreenProps) {
         <MailboxView theme={theme} mails={mails} openAgent={openAgent} />
       ) : tab === "decisions" ? (
         <DecisionsView theme={theme} decisions={decisions} />
+      ) : session.data && AgentChat ? (
+        <AgentChat key={session.data.agentId} agentId={session.data.agentId} />
       ) : session.data ? (
         <View style={styles.chat}>
           <Text style={styles.note}>

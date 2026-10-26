@@ -2,7 +2,7 @@ Assistant is a first mate for the other agents on your Paseo daemon. It is one l
 
 ## How it works
 
-The plugin runs one Assistant agent per daemon, in a hidden background workspace. It is created the first time you open the screen and recreated if it is archived. The Chat tab opens its conversation as an ordinary agent, with the usual composer. New session archives the current conversation and starts a fresh one.
+The plugin runs one Assistant agent per daemon, in a hidden background workspace. It is created the first time you open the screen and recreated if it is archived. The Chat tab embeds its conversation with the usual composer when the host provides `AgentChat` (the Paseo fork does), and otherwise has a button that opens it as an ordinary agent. New session archives the current conversation and starts a fresh one.
 
 The Assistant watches, routes, summarises and relays. It reads agent status, activity and pending permissions with Paseo's own agent tools, and it can message other agents (coordinators included) with `send_agent_prompt`, to pass on a decision you gave it or to ask for status; relayed decisions are signed as coming from the Assistant on your behalf. It never creates, archives, kills, cancels or changes agents or modes, and never answers permission requests.
 
