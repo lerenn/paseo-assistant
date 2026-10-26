@@ -99,7 +99,7 @@ export async function createAgent(
 
 /** Live agents, by default only the ones the Assistant created. */
 export async function listAgents(paseo: ManagePaseo, o: { createdByAssistant?: boolean } = {}) {
-  const { entries } = await paseo.agents.list({ filter: { includeArchived: false } });
+  const { entries } = await paseo.agents.list({ filter: { includeArchived: false, includeBackground: true } });
   const only = o.createdByAssistant ?? true;
   return entries.flatMap((e) => {
     const a = (e as { agent?: Record<string, unknown> }).agent;

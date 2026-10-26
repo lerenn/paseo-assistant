@@ -135,6 +135,15 @@ describe("agent management tools", () => {
     await expect(createAgent(paseo, { workspaceId: "w", title: "t", prompt: "p", labels: { "paseo.parent-agent-id": "x" } })).rejects.toThrow(/set by the system/);
   });
 
+  it("asks for agents of background workspaces too (regression: the Assistant itself lives in one)", async () => {
+    const { paseo } = fakePaseo();
+    const seen: unknown[] = [];
+    const original = paseo.agents.list;
+    paseo.agents.list = async (o?: unknown) => (seen.push(o), original(o));
+    await listAgents(paseo);
+    expect(seen[0]).toEqual({ filter: { includeArchived: false, includeBackground: true } });
+  });
+
   it("lists only what the Assistant created unless asked for all", async () => {
     const { paseo } = fakePaseo();
     expect((await listAgents(paseo)).map((a) => a.id)).toEqual(["mine"]);

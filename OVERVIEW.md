@@ -22,7 +22,7 @@ Agent mail lives in the **Agents Mail** plugin; the Mailbox tab shows the Assist
 
 Without Agents Mail the Mailbox tab is disabled with the hint "Agents Mail not installed" ("not answering" or "needs an update" in those cases) and Decisions and Open items work as before. The plugin finds Agents Mail through `~/.paseo/agents-mail/endpoint.json` and its loopback API; nothing is shared between the two.
 
-**Migration.** The first time Agents Mail answers, the Assistant moves its old `mailbox.json` into it (kept as `mailbox.json.migrated`). Agents started before the change still hold the old `assistant_mail` tool, and the Assistant's older sessions `assistant_mailbox` and `assistant_mark_read`: they keep working as forwarders to Agents Mail, and say so in their description; they report that nothing was sent when Agents Mail is not installed. Use New session to give the Assistant the new tools.
+**Migration.** Agents started before the change still hold the old `assistant_mail` tool, and the Assistant's older sessions `assistant_mailbox` and `assistant_mark_read`: they keep working as forwarders to Agents Mail, and say so in their description; they report that nothing was sent when Agents Mail is not installed. Use New session to give the Assistant the new tools.
 
 ## Decisions
 
@@ -44,4 +44,4 @@ The Assistant can write its own memory: `Write` and `Edit` work only in its Clau
 
 ## Forwarders and the diagnostic
 
-`assistant_mail`, `assistant_mailbox` and `assistant_mark_read` only forward to Agents Mail, for agents created before Agents Mail that still hold the old tool. The plugin counts their calls (`shim-usage.json`) and logs, a minute after start and then hourly, how many live agents still hold an `assistant_mail` capability; the RPC `assistant.shims` gives the same (`liveHolders`, `uses`, `lastUsedAt`, `removable`). When `removable` is true the forwarders, and the one-time `mailbox.json` import, can be deleted. The Assistant stores no mail of its own.
+`assistant_mail`, `assistant_mailbox` and `assistant_mark_read` only forward to Agents Mail, for agents created before Agents Mail that still hold the old tool. The plugin counts their calls (`shim-usage.json`) and logs, a minute after start and then hourly, how many live agents still hold an `assistant_mail` capability; the RPC `assistant.shims` gives the same (`liveHolders`, `uses`, `lastUsedAt`, `removable`). When `removable` is true the forwarders can be deleted. The Assistant stores no mail of its own (the one-time import of the old `mailbox.json` is gone: the daemon never had one).
