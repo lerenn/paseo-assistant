@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { isWebLink, itemSchema, type Item } from "../shared/item";
+import { isWebLink, itemSchema, type Item, type ItemOwner } from "../shared/item";
 
 const MAX_ITEMS = 500;
 
@@ -44,11 +44,12 @@ export class ItemStore {
     return item;
   }
 
-  add(input: { title: string; detail?: string; link?: string }): Item {
+  add(input: { title: string; detail?: string; link?: string; owner?: ItemOwner }): Item {
     const at = this.now();
     const item: Item = {
       id: randomUUID(),
       title: input.title.trim(),
+      owner: input.owner ?? "agent",
       detail: input.detail?.trim() || null,
       link: this.checkLink(input.link),
       addedAt: at,
@@ -62,10 +63,11 @@ export class ItemStore {
   }
 
   /** Changes the given fields of an open item; `detail` or `link` set to an empty string clears it. */
-  update(id: string, input: { title?: string; detail?: string; link?: string }): Item {
+  update(id: string, input: { title?: string; detail?: string; link?: string; owner?: ItemOwner }): Item {
     const item = this.find(id);
     if (item.closed) throw new Error("Item is closed");
     if (input.title !== undefined) item.title = input.title.trim();
+    if (input.owner !== undefined) item.owner = input.owner;
     if (input.detail !== undefined) item.detail = input.detail.trim() || null;
     if (input.link !== undefined) item.link = this.checkLink(input.link);
     item.updatedAt = this.now();

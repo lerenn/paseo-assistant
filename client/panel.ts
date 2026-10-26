@@ -1,10 +1,14 @@
+import type { Item } from "../shared/item";
 import { countBadge } from "./mail-format";
 
-export type PanelTab = "mailbox" | "decisions" | "items";
+export type PanelTab = "mailbox" | "decisions" | "actions" | "items";
 
 export interface PanelCounts {
   unreadMail: number;
   openDecisions: number;
+  /** Open items with owner human: what the user has to do. */
+  yourActions: number;
+  /** Open items with owner agent: waits. */
   openItems: number;
 }
 
@@ -22,6 +26,7 @@ export function panelTabs(c: PanelCounts, mailAvailable = true, hint: string = M
   return [
     { id: "mailbox", label: "Mailbox", badge: mailAvailable ? countBadge(c.unreadMail) : "", disabled: !mailAvailable, hint: mailAvailable ? null : hint },
     { id: "decisions", label: "Decisions", badge: countBadge(c.openDecisions), disabled: false, hint: null },
+    { id: "actions", label: "Your actions", badge: countBadge(c.yourActions), disabled: false, hint: null },
     { id: "items", label: "Open items", badge: countBadge(c.openItems), disabled: false, hint: null },
   ];
 }
@@ -29,6 +34,12 @@ export function panelTabs(c: PanelCounts, mailAvailable = true, hint: string = M
 /** The tab to show: the wanted one, unless it is disabled, then Decisions. */
 export function effectiveTab(wanted: PanelTab, mailAvailable: boolean): PanelTab {
   return wanted === "mailbox" && !mailAvailable ? "decisions" : wanted;
+}
+
+/** Open (not closed) items by owner: `human` for Your actions, `agent` (also items saved before owners existed) for Open items. */
+export function itemCounts(items: readonly Pick<Item, "owner" | "closed">[]): { yourActions: number; openItems: number } {
+  const open = items.filter((i) => !i.closed);
+  return { yourActions: open.filter((i) => i.owner === "human").length, openItems: open.filter((i) => i.owner !== "human").length };
 }
 
 /** The count on the panel toggle: what needs the human's choice, as on the sidebar row. */
