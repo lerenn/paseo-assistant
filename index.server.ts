@@ -7,7 +7,7 @@ import { DecisionStore, decisionNudge } from "./server/decisions";
 import { ItemStore } from "./server/items";
 import { AgentsMailClient, AgentsMailError } from "./server/agentsmail";
 import { migrateLegacyMail } from "./server/migrate";
-import { Delivery, PendingDeliveries, dropStaleOnce, statusOf } from "./server/delivery";
+import { Delivery, PendingDeliveries, dropStaleOnce, statusOf, titleOf } from "./server/delivery";
 import { McpServer } from "./server/mcp";
 import { AssistantSession, StateFile, dataDir, type AssistantPaseo } from "./server/session";
 import { CAPABILITY_ENV, CapabilityStore } from "./server/tokens";
@@ -108,8 +108,7 @@ export default function contribute(server: PluginServerContext) {
       nameOf: async (agentId, hint) => {
         if (hint) return hint;
         try {
-          const snapshot = (await paseo?.agents.ref(agentId).refresh()) as { title?: string | null } | null | undefined;
-          return snapshot?.title || agentId;
+          return titleOf(await paseo?.agents.ref(agentId).refresh()) ?? agentId;
         } catch {
           return agentId;
         }
