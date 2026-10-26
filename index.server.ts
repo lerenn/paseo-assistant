@@ -1,10 +1,11 @@
 import { join } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
-import { decisionCancelRpc, decisionAnswerRpc, currentRpc, shimsRpc, decisionListRpc, ensureRpc, itemListRpc, mailListRpc, mailReadRpc, resetRpc } from "./shared/rpc";
+import { decisionCancelRpc, decisionAnswerRpc, currentRpc, shimsRpc, uiGetRpc, uiSetRpc, decisionListRpc, ensureRpc, itemListRpc, mailListRpc, mailReadRpc, resetRpc } from "./shared/rpc";
 import { DEFAULT_PROVIDER, assistantSettings, settingsSchema } from "./shared/settings";
 import { MailHttp } from "./server/http";
 import { DecisionStore, cancelNudge, decisionNudge } from "./server/decisions";
 import { noteForTurn } from "./server/ask-check";
+import { UiPrefs } from "./server/ui-prefs";
 import { ItemStore } from "./server/items";
 import { AgentsMailClient, AgentsMailError } from "./server/agentsmail";
 import { ShimUsageStore, describeReport, shimReport } from "./server/shims";
@@ -146,6 +147,9 @@ export default function contribute(server: PluginServerContext) {
     if (!report) throw new Error("The Paseo API is not available yet.");
     return report;
   });
+  const uiPrefs = new UiPrefs(process.env.ASSISTANT_UI ?? join(dataDir, "ui.json"));
+  server.handle(uiGetRpc, async () => ({ panelWidth: uiPrefs.panelWidth() }));
+  server.handle(uiSetRpc, async (input) => ({ panelWidth: uiPrefs.setPanelWidth(input.panelWidth) }));
   server.handle(currentRpc, async () => ({ agentId: session.currentAgentId() }));
   server.handle(resetRpc, async (_input, ctx) => {
     capture(ctx);

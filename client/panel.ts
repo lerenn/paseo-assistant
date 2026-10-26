@@ -42,5 +42,20 @@ export function panelLayout(compact: boolean, open: boolean): "hidden" | "side" 
   return !open ? "hidden" : compact ? "full" : "side";
 }
 
+export const MIN_PANEL_WIDTH = 280;
+export const DEFAULT_PANEL_WIDTH = 380;
+/** The panel may take at most this share of the width available. */
+export const MAX_PANEL_SHARE = 0.6;
+
+/** A panel width kept between the minimum and 60% of the width available (the minimum wins on a very narrow window). */
+export function clampPanelWidth(width: number, available: number): number {
+  const max = Math.max(MIN_PANEL_WIDTH, Math.floor(available * MAX_PANEL_SHARE));
+  const w = Number.isFinite(width) ? width : DEFAULT_PANEL_WIDTH;
+  return Math.round(Math.min(Math.max(w, MIN_PANEL_WIDTH), max));
+}
+
+/** Dragging the left edge left (negative dx) widens the panel; right narrows it. */
+export const widthAfterDrag = (startWidth: number, dx: number, available: number): number => clampPanelWidth(startWidth - dx, available);
+
 /** Kept for the life of the page, so switching screens and coming back finds the panel as it was. */
 export const panelMemory: { open: boolean; tab: PanelTab } = { open: true, tab: "mailbox" };

@@ -67,3 +67,27 @@ describe("cancelled decisions are not open", () => {
     expect(decisionStatus({ ...base, cancelledAt: 5 })).toBe("cancelled");
   });
 });
+
+import { DEFAULT_PANEL_WIDTH, MIN_PANEL_WIDTH, clampPanelWidth, widthAfterDrag } from "./panel";
+
+describe("panel width clamping", () => {
+  it("keeps the width between 280 px and 60% of the width available", () => {
+    expect(clampPanelWidth(100, 1500)).toBe(MIN_PANEL_WIDTH);
+    expect(clampPanelWidth(400, 1500)).toBe(400);
+    expect(clampPanelWidth(5000, 1500)).toBe(900);
+    expect(clampPanelWidth(900, 1500)).toBe(900);
+    expect(clampPanelWidth(901, 1500)).toBe(900);
+  });
+  it("the minimum wins on a very narrow window, and a bad width falls back to the default", () => {
+    expect(clampPanelWidth(500, 300)).toBe(MIN_PANEL_WIDTH);
+    expect(clampPanelWidth(Number.NaN, 2000)).toBe(DEFAULT_PANEL_WIDTH);
+    expect(clampPanelWidth(Number.POSITIVE_INFINITY, 2000)).toBe(DEFAULT_PANEL_WIDTH);
+  });
+  it("dragging the left edge left widens, right narrows, and both stop at the limits", () => {
+    expect(widthAfterDrag(380, -100, 1500)).toBe(480);
+    expect(widthAfterDrag(380, 60, 1500)).toBe(320);
+    expect(widthAfterDrag(380, 500, 1500)).toBe(MIN_PANEL_WIDTH);
+    expect(widthAfterDrag(380, -2000, 1500)).toBe(900);
+    expect(widthAfterDrag(380, 0, 1500)).toBe(380);
+  });
+});
