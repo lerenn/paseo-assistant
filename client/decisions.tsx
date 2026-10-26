@@ -9,6 +9,7 @@ import { decisionAnswerRpc, decisionCancelRpc, decisionListRpc } from "../shared
 import { UndoQueue } from "./undo";
 import { cardStyle } from "./card";
 import { IdChip } from "./id-chip";
+import { canSend, isSendKey } from "./keys";
 
 export const DECISIONS_KEY = ["assistant", "decisions"];
 const REFRESH_MS = 10_000;
@@ -71,11 +72,17 @@ function OpenDecision({ theme, decision, busy, onAnswer, onCancel }: { theme: Pl
             multiline
             value={text}
             onChangeText={setText}
-            placeholder="Your answer"
+            // Enter sends, Shift+Enter is a newline (web keyboards; a phone keyboard's Enter is a newline and Send is the button).
+            onKeyPress={(e) => {
+              if (!isSendKey(e.nativeEvent as { key?: string; shiftKey?: boolean; isComposing?: boolean })) return;
+              (e as { preventDefault?: () => void }).preventDefault?.();
+              if (canSend(text, busy)) onAnswer(text.trim(), true);
+            }}
+            placeholder="Your answer (Enter sends, Shift+Enter adds a line)"
             placeholderTextColor={theme.colors.foregroundMuted}
             style={{ color: theme.colors.foreground, backgroundColor: theme.colors.surface2, borderRadius: 8, padding: 10, minHeight: 60 }}
           />
-          <Pressable accessibilityRole="button" disabled={busy || !text.trim()} onPress={() => onAnswer(text.trim(), true)} style={[button, { opacity: text.trim() ? 1 : 0.5 }]}>
+          <Pressable accessibilityRole="button" disabled={!canSend(text, busy)} onPress={() => onAnswer(text.trim(), true)} style={[button, { opacity: canSend(text, busy) ? 1 : 0.5 }]}>
             <Text style={{ color: theme.colors.foreground, fontSize: 13 }}>Send</Text>
           </Pressable>
         </View>
