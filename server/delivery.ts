@@ -57,6 +57,13 @@ export function statusOf(snapshot: unknown): string | null {
   return typeof status === "string" ? status : null;
 }
 
+/** The agent title in what `ref(id).refresh()` returns (`{ agent: { title } }`), or null. */
+export function titleOf(snapshot: unknown): string | null {
+  const s = snapshot as { agent?: { title?: unknown }; title?: unknown } | null | undefined;
+  const title = s?.agent?.title ?? s?.title;
+  return typeof title === "string" && title ? title : null;
+}
+
 /**
  * Drops the queued answers once, the first time it runs with this marker file: answers stuck before the status fix
  * were handled by hand. Later starts keep the queue as it is.

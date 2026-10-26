@@ -166,3 +166,13 @@ describe("dropStaleOnce", () => {
     expect(queue.list()).toEqual(["c"]);
   });
 });
+
+describe("titleOf", () => {
+  it("reads the title from the refresh() shape, so forwarded mail names the agent instead of its id", async () => {
+    const { titleOf } = await import("./delivery");
+    expect(titleOf({ agent: { title: "Builder" }, project: null })).toBe("Builder");
+    expect(titleOf({ title: "Old shape" })).toBe("Old shape");
+    expect(titleOf({ agent: { title: null } })).toBeNull();
+    expect(titleOf(null)).toBeNull();
+  });
+});
