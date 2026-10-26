@@ -176,7 +176,7 @@ describe("ASSISTANT_PROMPT", () => {
   it("manages agents within guardrails and degrades without the optional tools", () => {
     expect(ASSISTANT_PROMPT).toContain("send_agent_prompt");
     expect(ASSISTANT_PROMPT).toContain("on the human's behalf");
-    expect(ASSISTANT_PROMPT).toContain("Do not edit files and never answer an agent's permission request");
+    expect(ASSISTANT_PROMPT).toContain("do not edit any other file, and never answer an agent's permission request");
     expect(ASSISTANT_PROMPT).toContain("inbox_ask");
     expect(ASSISTANT_PROMPT).toContain("exist only if their plugins are installed");
   });

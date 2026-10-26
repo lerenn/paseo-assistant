@@ -106,6 +106,10 @@ export default function contribute(server: PluginServerContext) {
       decisions,
       items,
       paseo: () => paseo as unknown as import("./server/manage").ManagePaseo | null,
+      renew: async (input) => {
+        if (!paseo) throw new Error("The Paseo API is not available yet; try again in a moment.");
+        return session.renew(paseo, input);
+      },
       nameOf: async (agentId, hint) => {
         if (hint) return hint;
         try {

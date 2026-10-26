@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import type { Mail, MailAvailability } from "../shared/mail";
 import { mailListRpc, mailReadRpc } from "../shared/rpc";
+import { cardStyle } from "./card";
 import { kindLabel } from "./mail-format";
 
 export const MAIL_KEY = ["assistant", "mail"];
@@ -49,7 +50,7 @@ export function MailboxView({ theme, mails, availability = "ok", openAgent }: Pr
       <ScrollView>
         {mails.length === 0 ? <Text style={{ color: theme.colors.foregroundMuted, padding: 16 }}>No mail yet. Agents write here at milestones.</Text> : null}
         {mails.map((mail) => (
-          <View key={mail.id} style={{ paddingHorizontal: 16, paddingVertical: 10, gap: 2, opacity: mail.read ? 0.6 : 1 }}>
+          <View key={mail.id} style={[cardStyle(theme, { muted: mail.read }), { gap: 2 }]}>
             <Text style={{ color: theme.colors.foreground, fontSize: 14, fontWeight: mail.read ? "400" : "600" }}>
               {kindLabel(mail.kind)}: {mail.subject}
             </Text>

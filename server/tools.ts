@@ -15,6 +15,8 @@ export interface ToolContext {
   items: ItemStore;
   /** The Paseo SDK, once a hook or RPC has handed it over; null before. */
   paseo(): ManagePaseo | null;
+  /** Starts a new Assistant session with this handover (see AssistantSession.renew). */
+  renew(input: { handover: string; heartbeatId?: string }): Promise<{ agentId: string }>;
   /** Best-effort title of an agent; falls back to its id. */
   nameOf(agentId: string, hint?: string): Promise<string>;
 }
@@ -229,6 +231,17 @@ export const mailTools: ToolDef[] = [
     input: z.object({ createdByAssistant: z.boolean().default(true) }),
     async run(input: { createdByAssistant: boolean }, ctx) {
       return listAgents(needPaseo(ctx), input);
+    },
+  },
+  {
+    name: "assistant_session_renew",
+    description:
+      "Start your own new session and hand over your context. Write the handover first: open decision ids, the agents you follow with their ids, what the human is waiting on, and your heartbeat id (pass it as heartbeatId so the new session deletes it before making its own: never two). The plugin saves it, creates the new session with it as the first message, and archives this one a few seconds later. At most once per 10 minutes. Use it after a plugin deploy, when your context is very full, or when asked; never while acting for the human.",
+    roles: ["assistant"],
+    input: z.object({ handover: z.string().min(20).max(20_000), heartbeatId: z.string().min(1).max(200).optional() }),
+    async run(input: { handover: string; heartbeatId?: string }, ctx) {
+      await ctx.renew(input);
+      return "A new session is starting with your handover. This one will be archived in a few seconds: stop now, do not start new work.";
     },
   },
 ];
