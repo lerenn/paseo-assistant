@@ -55,3 +55,10 @@ The Assistant can write its own memory: `Write` and `Edit` work only in its Clau
 ## Your Actions
 
 Open items have an `owner`: `agent` (the default, also for items saved before owners existed) for waits, `human` for what you must DO: merge a PR, run a command, enter a Secret, sign in. `assistant_item_add` and `assistant_item_update` take `owner`, and the tools show it. The **Your Actions** tab lists the open `human` items with a count: the title and the detail, a markdown text of steps (up to 8000 characters) rendered with the host's markdown renderer and each fenced code block as a block with a Copy button. The **Current Tasks** tab keeps the `agent` items only. The Assistant adds an item with owner `human` for anything you must do, closes it when it is done, and answers "what do I need to do?" from that list. The sidebar badge stays decisions-only.
+
+## Item ids, listing, staleness and the heartbeat review
+
+- Cards in **Current Tasks** and **Your Actions** have the same copyable 8 character id chip on the header row as decision cards (one shared `CardHeader`; the right side shows "closed" or a "stale?" badge). `assistant_item_update` and `assistant_item_close` accept the short id or a unique prefix of 4+ characters.
+- `assistant_item_list(status?, owner?)` returns id, shortId, title, owner, status, stale, detail, link, createdAt, updatedAt (and closedAt/note for closed ones); open by default.
+- An open item with no update for 24 hours shows a small **stale?** badge; any update to it resets it.
+- On each 15-minute mailbox heartbeat the Assistant also reviews the open items after the mailbox: it lists them, checks each against the agent's status, the PR or run it links to and the mail, and closes or updates stale ones. The heartbeat's own text ("Process the Assistant mailbox") does not change; the system prompt makes the review part of processing it, so the existing heartbeat keeps working.

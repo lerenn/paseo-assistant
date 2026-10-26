@@ -24,3 +24,8 @@ export const isWebLink = (link: string): boolean => {
     return false;
   }
 };
+
+/** An open item nobody has touched for this long is flagged "stale?" in the panel. */
+export const STALE_AFTER_MS = 24 * 3_600_000;
+
+export const isStale = (item: Pick<Item, "updatedAt" | "closed">, now: number): boolean => !item.closed && now - item.updatedAt > STALE_AFTER_MS;

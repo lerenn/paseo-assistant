@@ -3,9 +3,10 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Linking, Pressable, ScrollView, Text, View } from "react-native";
-import type { Item, ItemOwner } from "../shared/item";
+import { isStale, type Item, type ItemOwner } from "../shared/item";
 import { itemListRpc } from "../shared/rpc";
 import { cardStyle } from "./card";
+import { CardHeader } from "./card-header";
 import { RichText } from "./rich-text";
 
 export const ITEMS_KEY = ["assistant", "items"];
@@ -18,7 +19,20 @@ export function useItems() {
 
 function ItemRow({ theme, item, rich }: { theme: PluginTheme; item: Item; rich?: boolean }) {
   return (
-    <View style={[cardStyle(theme, { muted: !!item.closed }), { gap: 2 }]}>
+    <View style={[cardStyle(theme, { muted: !!item.closed }), { gap: 4 }]}>
+      <CardHeader
+        theme={theme}
+        id={item.id}
+        right={
+          item.closed ? (
+            <Text style={{ color: theme.colors.foregroundMuted, fontSize: 11 }}>closed</Text>
+          ) : isStale(item, Date.now()) ? (
+            <View accessibilityLabel="No update for 24 hours" style={{ paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, backgroundColor: theme.colors.statusWarning }}>
+              <Text style={{ color: theme.colors.surface0, fontSize: 11, fontWeight: "600" }}>stale?</Text>
+            </View>
+          ) : undefined
+        }
+      />
       <Text style={{ color: theme.colors.foreground, fontSize: 14, fontWeight: item.closed ? "400" : "600" }}>{item.title}</Text>
       {item.detail ? rich ? <RichText theme={theme} markdown={item.detail} /> : <Text style={{ color: theme.colors.foregroundMuted, fontSize: 13 }}>{item.detail}</Text> : null}
       <View style={{ flexDirection: "row", gap: 12 }}>

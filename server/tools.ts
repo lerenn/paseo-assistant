@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { mailKindSchema } from "../shared/mail";
-import { DECISION_STATUSES, MAX_OPTIONS, MIN_OPTIONS, decisionStatus, findDecision, shortId } from "../shared/decision";
+import { DECISION_STATUSES, MAX_OPTIONS, MIN_OPTIONS, decisionStatus, findDecision } from "../shared/decision";
+import { shortId } from "../shared/id";
+import { isStale } from "../shared/item";
 import type { DecisionStore } from "./decisions";
 import type { ItemStore } from "./items";
 import { ManageError, createAgent, createWorkspace, listAgents, listProjects, type ManagePaseo } from "./manage";
@@ -169,14 +171,14 @@ export const mailTools: ToolDef[] = [
     input: z.object({ title: z.string().min(1).max(200), detail: z.string().max(8000).optional(), link: z.string().max(500).optional(), owner: z.enum(["human", "agent"]).default("agent").describe("human: something the user must DO (merge, run a command, enter a Secret, sign in); agent: a wait on an agent or a process.") }),
     async run(input: { title: string; detail?: string; link?: string; owner: "human" | "agent" }, ctx) {
       const item = ctx.items.add(input);
-      return { id: item.id, owner: item.owner };
+      return { id: item.id, shortId: shortId(item.id), owner: item.owner };
     },
   },
   {
     name: "assistant_item_update",
     description: "Change the title, detail or link of an open item (an empty detail or link clears it). Fails on an unknown or closed id.",
     roles: ["assistant"],
-    input: z.object({ id: z.string().min(1), title: z.string().min(1).max(200).optional(), detail: z.string().max(8000).optional(), link: z.string().max(500).optional(), owner: z.enum(["human", "agent"]).optional() }),
+    input: z.object({ id: z.string().min(1).describe("Short (8 character) or full item id, or a unique prefix of 4+ characters."), title: z.string().min(1).max(200).optional(), detail: z.string().max(8000).optional(), link: z.string().max(500).optional(), owner: z.enum(["human", "agent"]).optional() }),
     async run(input: { id: string; title?: string; detail?: string; link?: string; owner?: "human" | "agent" }, ctx) {
       const { id, ...changes } = input;
       const item = ctx.items.update(id, changes);
@@ -184,10 +186,38 @@ export const mailTools: ToolDef[] = [
     },
   },
   {
+    name: "assistant_item_list",
+    description:
+      "List items: id, shortId (the 8 characters on the card), title, owner (human = Your Actions, agent = Current Tasks), status (open or closed), detail, link, createdAt and updatedAt, and stale: true for an open item not updated for 24 hours. Filter by status (open by default, closed, all) and by owner. Use it on each mailbox heartbeat to review what is still true.",
+    roles: ["assistant"],
+    input: z.object({ status: z.enum(["open", "closed", "all"]).default("open"), owner: z.enum(["human", "agent"]).optional() }),
+    async run(input: { status: "open" | "closed" | "all"; owner?: "human" | "agent" }, ctx) {
+      const iso = (t: number | null | undefined) => (t == null ? null : new Date(t).toISOString());
+      const now = Date.now();
+      return ctx.items
+        .list()
+        .filter((i) => (!input.owner || i.owner === input.owner) && (input.status === "all" || (input.status === "open") === !i.closed))
+        .map((i) => ({
+          id: i.id,
+          shortId: shortId(i.id),
+          title: i.title,
+          owner: i.owner,
+          status: i.closed ? "closed" : "open",
+          stale: isStale(i, now),
+          detail: i.detail,
+          link: i.link,
+          createdAt: iso(i.addedAt),
+          updatedAt: iso(i.updatedAt),
+          closedAt: iso(i.closed?.at),
+          note: i.closed?.note ?? null,
+        }));
+    },
+  },
+  {
     name: "assistant_item_close",
     description: "Close an open item when what the human was waiting for happened. An optional note says how it ended. Fails on an unknown or already closed id.",
     roles: ["assistant"],
-    input: z.object({ id: z.string().min(1), note: z.string().max(1000).optional() }),
+    input: z.object({ id: z.string().min(1).describe("Short (8 character) or full item id, or a unique prefix of 4+ characters."), note: z.string().max(1000).optional() }),
     async run(input: { id: string; note?: string }, ctx) {
       const item = ctx.items.close(input.id, input.note);
       return { id: item.id, closed: true };

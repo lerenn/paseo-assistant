@@ -1,14 +1,14 @@
 import { useRpc } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, useSyncExternalStore, type ReactNode } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import type { Decision } from "../shared/decision";
 import { decisionStatus, isOpen } from "../shared/decision";
 import { decisionAnswerRpc, decisionCancelRpc, decisionListRpc } from "../shared/rpc";
 import { UndoQueue } from "./undo";
 import { cardStyle } from "./card";
-import { IdChip } from "./id-chip";
+import { CardHeader } from "./card-header";
 import { canSend, isSendKey } from "./keys";
 
 export const DECISIONS_KEY = ["assistant", "decisions"];
@@ -29,16 +29,6 @@ export function DecisionsBadge({ text }: { text: string }) {
 export function useDecisions() {
   const list = useRpc(decisionListRpc);
   return useQuery({ queryKey: DECISIONS_KEY, queryFn: () => list({}), refetchInterval: REFRESH_MS });
-}
-
-/** The header row of every card: the id chip on the left, something small (the × , Undo, the state) on the right. */
-export function CardHeader({ theme, id, right }: { theme: PluginTheme; id: string; right?: ReactNode }) {
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 24 }}>
-      <IdChip theme={theme} id={id} />
-      {right ?? null}
-    </View>
-  );
 }
 
 function OpenDecision({ theme, decision, busy, onAnswer, onCancel }: { theme: PluginTheme; decision: Decision; busy: boolean; onAnswer: (answer: string, other: boolean) => void; onCancel: () => void }) {
