@@ -3,10 +3,11 @@ import type { PluginIconProps } from "@getpaseo/plugin";
 import { useAgent } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/ui";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
-import { Animated, Easing } from "react-native";
+import { useEffect, useState } from "react";
+import { View } from "react-native";
 import { currentRpc } from "../shared/rpc";
 import { isBusyStatus } from "./busy";
+import { startSpinner } from "./spin";
 
 const POLL_MS = 15_000;
 
@@ -22,18 +23,13 @@ export function IdleIcon({ size, color }: PluginIconProps) {
   return <Icon name="Sparkles" size={size} color={color} />;
 }
 
-/** A spinner, as the host shows for running agents. */
+/** A spinner while the Assistant works: a timer turns it in steps for as long as it is mounted, and the row swaps to the static icon on idle. */
 export function BusyIcon({ size, color }: PluginIconProps) {
-  const turn = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const loop = Animated.loop(Animated.timing(turn, { toValue: 1, duration: 1000, easing: Easing.linear, useNativeDriver: true }));
-    loop.start();
-    return () => loop.stop();
-  }, [turn]);
-  const rotate = turn.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
+  const [angle, setAngle] = useState(0);
+  useEffect(() => startSpinner(setAngle), []);
   return (
-    <Animated.View style={{ transform: [{ rotate }] }}>
+    <View style={{ transform: [{ rotate: `${angle}deg` }] }}>
       <Icon name="LoaderCircle" size={size} color={color} />
-    </Animated.View>
+    </View>
   );
 }
