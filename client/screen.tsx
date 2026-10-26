@@ -1,24 +1,26 @@
 import { useRpc } from "@getpaseo/plugin/client";
-import type { PluginAppPanelProps } from "@getpaseo/plugin/client";
-import { AgentChat } from "@getpaseo/plugin/client/ui";
+import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { ensureRpc, resetRpc } from "../shared/rpc";
-import { unreadBadge } from "./mail-format";
+import { DecisionsView, useDecisions } from "./decisions";
+import { countBadge, unreadBadge } from "./mail-format";
 import { MailboxView, useMail } from "./mailbox";
 
 const SESSION_KEY = ["assistant", "session"];
 
-type Tab = "chat" | "mailbox";
+type Tab = "chat" | "mailbox" | "decisions";
 
-export function AssistantPanel(props: PluginAppPanelProps) {
+export function AssistantScreen(props: PluginScreenProps) {
   const { theme, layout } = props;
-  // Panels get `navigation` on hosts that provide it; the link is inert without it.
-  const openAgent = (props as { navigation?: { openAgent?: (t: { agentId: string }) => void } }).navigation?.openAgent;
+  // Screens get `navigation` on hosts that provide it; the link is inert without it.
+  const openAgent = props.navigation?.openAgent;
   const [tab, setTab] = useState<Tab>("chat");
   const mail = useMail();
   const mails = mail.data?.mails ?? [];
+  const decisions = useDecisions().data?.decisions ?? [];
+  const openDecisions = decisions.filter((d) => !d.answer).length;
   const ensure = useRpc(ensureRpc);
   const reset = useRpc(resetRpc);
   const queryClient = useQueryClient();
@@ -45,6 +47,7 @@ export function AssistantPanel(props: PluginAppPanelProps) {
         backgroundColor: theme.colors.surface2,
       },
       buttonText: { color: theme.colors.foreground, fontSize: 13 },
+      chat: { gap: 8 },
       note: { color: theme.colors.foregroundMuted, padding: 16 },
       error: { color: theme.colors.foreground, padding: 16 },
     }),
@@ -55,13 +58,17 @@ export function AssistantPanel(props: PluginAppPanelProps) {
   return (
     <View style={styles.screen}>
       <View style={styles.bar}>
-        {(["chat", "mailbox"] as const).map((t) => (
-          <Pressable key={t} accessibilityRole="tab" onPress={() => setTab(t)} style={[styles.button, { marginRight: 6, opacity: tab === t ? 1 : 0.6 }]}>
-            <Text style={styles.buttonText}>
-              {t === "chat" ? "Chat" : `Mailbox${unreadBadge(mails) ? ` (${unreadBadge(mails)})` : ""}`}
-            </Text>
-          </Pressable>
-        ))}
+        {(["chat", "mailbox", "decisions"] as const).map((t) => {
+          const badge = t === "mailbox" ? unreadBadge(mails) : t === "decisions" ? countBadge(openDecisions) : "";
+          return (
+            <Pressable key={t} accessibilityRole="tab" onPress={() => setTab(t)} style={[styles.button, { marginRight: 6, opacity: tab === t ? 1 : 0.6 }]}>
+              <Text style={styles.buttonText}>
+                {t === "chat" ? "Chat" : t === "mailbox" ? "Mailbox" : "Decisions"}
+                {badge ? ` (${badge})` : ""}
+              </Text>
+            </Pressable>
+          );
+        })}
         <View style={{ flex: 1 }} />
         <Pressable
           accessibilityRole="button"
@@ -75,8 +82,22 @@ export function AssistantPanel(props: PluginAppPanelProps) {
       </View>
       {tab === "mailbox" ? (
         <MailboxView theme={theme} mails={mails} openAgent={openAgent} />
+      ) : tab === "decisions" ? (
+        <DecisionsView theme={theme} decisions={decisions} />
       ) : session.data ? (
-        <AgentChat key={session.data.agentId} agentId={session.data.agentId} />
+        <View style={styles.chat}>
+          <Text style={styles.note}>
+            The Assistant is a regular agent. Open its conversation to talk to it; mail and decisions are in the other tabs.
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            disabled={!openAgent}
+            onPress={() => openAgent?.({ agentId: session.data!.agentId })}
+            style={[styles.button, { alignSelf: "flex-start", marginHorizontal: 16, opacity: openAgent ? 1 : 0.5 }]}
+          >
+            <Text style={styles.buttonText}>Open the Assistant conversation</Text>
+          </Pressable>
+        </View>
       ) : error ? (
         <Text style={styles.error}>Assistant could not start: {error.message}</Text>
       ) : (

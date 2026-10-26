@@ -8,8 +8,8 @@ export const KIND_LABEL: Record<Mail["kind"], string> = {
   done: "Done",
 };
 
-/** The unread count the tab shows; empty when everything is read. */
-export const unreadBadge = (mails: readonly Mail[]): string => {
-  const n = mails.filter((m) => !m.read).length;
-  return n === 0 ? "" : n > 99 ? "99+" : String(n);
-};
+/** A tab's count badge: empty at zero, capped at 99+. */
+export const countBadge = (n: number): string => (n <= 0 ? "" : n > 99 ? "99+" : String(n));
+
+/** The unread count the Mailbox tab shows. */
+export const unreadBadge = (mails: readonly Mail[]): string => countBadge(mails.filter((m) => !m.read).length);

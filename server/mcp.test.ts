@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DecisionStore } from "./decisions";
 import { MailStore } from "./mailbox";
 import { McpServer } from "./mcp";
 import { CapabilityStore } from "./tokens";
@@ -16,7 +17,7 @@ afterEach(() => rmSync(dir, { recursive: true, force: true }));
 function setup(capability: ToolContext["capability"]) {
   const mailbox = new MailStore(path.join(dir, "m.json"));
   const onMail = vi.fn();
-  const ctx: ToolContext = { capability, mailbox, nameOf: async (id, hint) => hint ?? `name-${id}`, onMail };
+  const ctx: ToolContext = { capability, mailbox, decisions: new DecisionStore(path.join(dir, "d.json")), nameOf: async (id, hint) => hint ?? `name-${id}`, onMail };
   return { mailbox, onMail, ctx, mcp: new McpServer(mailTools) };
 }
 const call = (mcp: McpServer, ctx: ToolContext, name: string, args: unknown) =>
@@ -25,7 +26,7 @@ const call = (mcp: McpServer, ctx: ToolContext, name: string, args: unknown) =>
 describe("assistant MCP", () => {
   it("shows agents only assistant_mail and the Assistant only the read tools", async () => {
     expect(toolNames("agent")).toEqual(["assistant_mail"]);
-    expect(toolNames("assistant")).toEqual(["assistant_mailbox", "assistant_mark_read"]);
+    expect(toolNames("assistant")).toEqual(["assistant_mailbox", "assistant_mark_read", "assistant_decision_add"]);
     const { mcp, ctx } = setup({ role: "agent", agentId: "a1" });
     const list: any = await mcp.handle({ jsonrpc: "2.0", id: 1, method: "tools/list" }, ctx);
     expect(list.result.tools.map((t: any) => t.name)).toEqual(["assistant_mail"]);

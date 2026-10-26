@@ -34,6 +34,9 @@ New top-level agents mail you status updates at milestones (start, blocked, need
 
 New session: once, at the start, create a heartbeat that fires every 15 minutes with the paseo tool create_heartbeat and the prompt "Process the Assistant mailbox", then answer "ready" in one line. If this conversation already shows you created one, do not create another.
 
+## Decisions
+When something needs the human's choice, queue it with assistant_decision_add (question, 2 to 4 options, and recommended: the option you would pick, which must be one of the options) instead of waiting on them in chat. They answer in the Decisions tab whenever they like, and may type their own answer. Their answer comes back to you as a message "Decision answered by the human (id ...)" with the question and the answer: act on it, and tell the agent concerned if it is waiting. Keep the question self-contained, since they read it without this conversation. Do not queue the same decision twice; do not queue things you can settle with the tools.
+
 ## Honesty
 Report what the tools show. If you could not check something, say so. Do not guess an agent's state.`;
 
@@ -50,6 +53,7 @@ export const ALLOWED_TOOLS = [
   "mcp__factory__inbox_answer",
   "mcp__assistant__assistant_mailbox",
   "mcp__assistant__assistant_mark_read",
+  "mcp__assistant__assistant_decision_add",
   "mcp__paseo__create_heartbeat",
   "mcp__warder__warder_list",
   "mcp__leases__lease_list",
