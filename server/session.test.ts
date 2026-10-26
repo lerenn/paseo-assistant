@@ -120,7 +120,8 @@ describe("AssistantSession", () => {
     await withMail.ensure(spied);
     expect(mcp).toEqual([{ assistant: { type: "http", url: "http://127.0.0.1:9/mcp", headers: { authorization: "Bearer tok" }, alwaysLoad: true } }]);
     expect(sent).toHaveLength(1);
-    expect(ASSISTANT_PROMPT).toContain("assistant_mailbox");
+    expect(ASSISTANT_PROMPT).toContain("mail_list");
+    expect(ALLOWED_TOOLS).toContain("mcp__agents-mail__mail_list");
     expect(ALLOWED_TOOLS).toContain("mcp__assistant__assistant_mailbox");
     expect(ALLOWED_TOOLS).toContain("mcp__assistant__assistant_decision_add");
     expect(ASSISTANT_PROMPT).toContain("assistant_decision_add");

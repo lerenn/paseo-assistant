@@ -2,9 +2,9 @@ import { useRpc } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pressable, ScrollView, Text, View } from "react-native";
-import type { Mail } from "../shared/mail";
+import type { Mail, MailAvailability } from "../shared/mail";
 import { mailListRpc, mailReadRpc } from "../shared/rpc";
-import { KIND_LABEL } from "./mail-format";
+import { kindLabel } from "./mail-format";
 
 export const MAIL_KEY = ["assistant", "mail"];
 const REFRESH_MS = 10_000;
@@ -14,13 +14,20 @@ export function useMail() {
   return useQuery({ queryKey: MAIL_KEY, queryFn: () => list({}), refetchInterval: REFRESH_MS });
 }
 
+const UNAVAILABLE: Record<Exclude<MailAvailability, "ok">, string> = {
+  "not-installed": "Install the Agents Mail plugin to see agent mail here.",
+  unreachable: "Agents Mail is installed but does not answer. It may be restarting.",
+  outdated: "Update the Agents Mail plugin to see agent mail here.",
+};
+
 interface Props {
   theme: PluginTheme;
   mails: readonly Mail[];
+  availability?: MailAvailability;
   openAgent?: (target: { agentId: string }) => void;
 }
 
-export function MailboxView({ theme, mails, openAgent }: Props) {
+export function MailboxView({ theme, mails, availability = "ok", openAgent }: Props) {
   const markRead = useRpc(mailReadRpc);
   const queryClient = useQueryClient();
   const mark = useMutation({
@@ -28,6 +35,7 @@ export function MailboxView({ theme, mails, openAgent }: Props) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: MAIL_KEY }),
   });
   const unread = mails.filter((m) => !m.read).length;
+  if (availability !== "ok") return <Text style={{ color: theme.colors.foregroundMuted, padding: 16 }}>{UNAVAILABLE[availability]}</Text>;
   return (
     <View style={{ flex: 1 }}>
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, paddingVertical: 6 }}>
@@ -43,7 +51,7 @@ export function MailboxView({ theme, mails, openAgent }: Props) {
         {mails.map((mail) => (
           <View key={mail.id} style={{ paddingHorizontal: 16, paddingVertical: 10, gap: 2, opacity: mail.read ? 0.6 : 1 }}>
             <Text style={{ color: theme.colors.foreground, fontSize: 14, fontWeight: mail.read ? "400" : "600" }}>
-              {KIND_LABEL[mail.kind]}: {mail.subject}
+              {kindLabel(mail.kind)}: {mail.subject}
             </Text>
             {mail.body ? <Text style={{ color: theme.colors.foregroundMuted, fontSize: 13 }}>{mail.body}</Text> : null}
             <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>

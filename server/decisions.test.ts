@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { orderOptions } from "../shared/decision";
 import { McpServer } from "./mcp";
 import { DecisionStore, decisionNudge } from "./decisions";
-import { MailStore } from "./mailbox";
+import { AgentsMailClient } from "./agentsmail";
 import { mailTools, type ToolContext } from "./tools";
 
 let dir: string;
@@ -81,10 +81,9 @@ describe("decisionNudge", () => {
 describe("assistant_decision_add", () => {
   const ctx = (role: "agent" | "assistant"): ToolContext => ({
     capability: { role, agentId: role === "agent" ? "a1" : undefined },
-    mailbox: new MailStore(path.join(dir, "m.json")),
+    agentsMail: new AgentsMailClient(path.join(dir, "no-endpoint.json")),
     decisions: new DecisionStore(path.join(dir, "d.json")),
     nameOf: async () => "x",
-    onMail: () => undefined,
   });
   const call = (c: ToolContext, args: unknown) =>
     new McpServer(mailTools).handle({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "assistant_decision_add", arguments: args } }, c) as Promise<any>;
@@ -111,10 +110,9 @@ describe("assistant_decision_add", () => {
 describe("assistant_decision_close", () => {
   const ctx = (role: "agent" | "assistant" = "assistant"): ToolContext => ({
     capability: { role, agentId: role === "agent" ? "a1" : undefined },
-    mailbox: new MailStore(path.join(dir, "m.json")),
+    agentsMail: new AgentsMailClient(path.join(dir, "no-endpoint.json")),
     decisions: new DecisionStore(path.join(dir, "d.json")),
     nameOf: async () => "x",
-    onMail: () => undefined,
   });
   const call = (c: ToolContext, name: string, args: unknown) =>
     new McpServer(mailTools).handle({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }, c) as Promise<any>;

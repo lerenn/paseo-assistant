@@ -2,6 +2,9 @@ import { chmodSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "n
 import path from "node:path";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 
+/** Set in the environment of agents that still hold a capability for the old `assistant_mail` tool. */
+export const CAPABILITY_ENV = "PASEO_ASSISTANT_CAPABILITY";
+
 export type Role = "agent" | "assistant";
 
 export interface Capability {

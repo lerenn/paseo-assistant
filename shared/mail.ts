@@ -17,8 +17,11 @@ export const mailSchema = z.object({
   agentName: z.string(),
   subject: z.string(),
   body: z.string(),
-  kind: mailKindSchema,
+  /** A free tag set by the sender: start, blocked, pr, done, question, info... */
+  kind: z.string(),
   at: z.number(),
   read: z.boolean(),
 });
 export type Mail = z.output<typeof mailSchema>;
+
+export type MailAvailability = "ok" | "not-installed" | "unreachable" | "outdated";
