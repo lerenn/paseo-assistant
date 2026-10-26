@@ -4,7 +4,7 @@ Assistant is a first mate for the other agents on your Paseo daemon. It is one l
 
 The plugin runs one Assistant agent per daemon, in a hidden background workspace. It is created the first time you open the screen and recreated if it is archived. The Chat tab embeds its conversation with the usual composer when the host provides `AgentChat` (the Paseo fork does), and otherwise has a button that opens it as an ordinary agent. New session archives the current conversation and starts a fresh one.
 
-The Assistant watches, routes, summarises and relays. It reads agent status, activity and pending permissions with Paseo's own agent tools, and it can message other agents (coordinators included) with `send_agent_prompt`, to pass on a decision you gave it or to ask for status; relayed decisions are signed as coming from the Assistant on your behalf. It never creates, archives, kills, cancels or changes agents or modes, and never answers permission requests.
+The Assistant watches, routes, summarises and relays. It reads agent status, activity and pending permissions with Paseo's own agent tools, and it can message other agents (coordinators included) with `send_agent_prompt`, to pass on a decision you gave it or to ask for status; relayed decisions are signed as coming from the Assistant on your behalf. It can create and manage agents within guardrails (see Managing agents), and never answers permission requests.
 
 ## Setup
 
@@ -33,3 +33,7 @@ When something needs your choice, the Assistant queues it with `assistant_decisi
 For things you are waiting on but do not have to decide ("waiting for the cluster rework PR 3", "pin PR pending restart"), the Assistant keeps a list with `assistant_item_add(title, detail?, link?)`, `assistant_item_update(id, ...)` and `assistant_item_close(id, note?)`. The Open items tab shows the open ones with a count (the sidebar badge stays decisions-only); closed items stay under a collapsed "Closed" section. Decisions are for real choices only.
 
 `assistant_decision_list(status?, since?, until?)` shows the Assistant its decisions with a status (pending, answered, delivered, closed), the recommended option, the answer and its source, and timestamps; it checks it before queueing a new one.
+
+## Managing agents
+
+The Assistant can create and manage agents. Creation goes through the plugin, not the Paseo `create_agent` tool (which would make a subagent tied to the Assistant's session): `assistant_projects_list()` shows projects and workspaces, `assistant_workspace_create(project, title, runtime?)` makes a workspace (a Kubernetes Runtime pod by default), `assistant_agent_create(workspaceId, title, prompt, provider?, mode?, labels?)` makes a top-level agent there labelled `paseo.created-by=assistant`, and `assistant_agents_list` finds what it made. Those agents keep running after the Assistant's session ends. The Paseo tools archive, cancel, update, set modes, rename workspaces and manage schedules and heartbeats are pre-approved; the prompt sets the guardrails (a Decision first before archiving or cancelling a coordinator, the Factory Supervisor or a working agent; bypassPermissions only for its own agents; nothing on tf-aws prod; no contacting people; every action logged as an Open item). It needs the Paseo MCP tools (`mcp.injectIntoAgents`).

@@ -105,6 +105,7 @@ export default function contribute(server: PluginServerContext) {
       agentsMail,
       decisions,
       items,
+      paseo: () => paseo as unknown as import("./server/manage").ManagePaseo | null,
       nameOf: async (agentId, hint) => {
         if (hint) return hint;
         try {

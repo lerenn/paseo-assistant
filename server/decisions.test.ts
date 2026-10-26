@@ -85,6 +85,7 @@ describe("assistant_decision_add", () => {
     agentsMail: new AgentsMailClient(path.join(dir, "no-endpoint.json")),
     decisions: new DecisionStore(path.join(dir, "d.json")),
     items: new ItemStore(path.join(dir, "i.json")),
+    paseo: () => null,
     nameOf: async () => "x",
   });
   const call = (c: ToolContext, args: unknown) =>
@@ -115,6 +116,7 @@ describe("assistant_decision_close", () => {
     agentsMail: new AgentsMailClient(path.join(dir, "no-endpoint.json")),
     decisions: new DecisionStore(path.join(dir, "d.json")),
     items: new ItemStore(path.join(dir, "i.json")),
+    paseo: () => null,
     nameOf: async () => "x",
   });
   const call = (c: ToolContext, name: string, args: unknown) =>
@@ -156,6 +158,7 @@ describe("decision status and assistant_decision_list", () => {
     agentsMail: new AgentsMailClient(path.join(dir, "none.json")),
     decisions: new DecisionStore(path.join(dir, "d.json"), () => Date.parse("2026-10-26T10:00:00Z")),
     items: new ItemStore(path.join(dir, "i.json")),
+    paseo: () => null,
     nameOf: async () => "x",
   });
   const list = async (c: ToolContext, args: unknown = {}) =>
