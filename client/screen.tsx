@@ -9,7 +9,7 @@ import { ensureRpc, resetRpc } from "../shared/rpc";
 import { DecisionsBadge, DecisionsView, useDecisions } from "./decisions";
 import { ItemsView, useItems } from "./items";
 import { MailboxView, useMail } from "./mailbox";
-import { panelLayout, panelMemory, panelTabs, toggleBadge, type PanelTab } from "./panel";
+import { effectiveTab, mailHint, panelLayout, panelMemory, panelTabs, toggleBadge, type PanelTab } from "./panel";
 
 const SESSION_KEY = ["assistant", "session"];
 const PANEL_WIDTH = 380;
@@ -22,7 +22,7 @@ export function AssistantScreen(props: PluginScreenProps) {
   // Screens get `navigation` on hosts that provide it; the link is inert without it.
   const openAgent = props.navigation?.openAgent;
   const [open, setOpenState] = useState(panelMemory.open);
-  const [tab, setTabState] = useState<PanelTab>(panelMemory.tab);
+  const [wantedTab, setTabState] = useState<PanelTab>(panelMemory.tab);
   const setOpen = (value: boolean) => {
     panelMemory.open = value;
     setOpenState(value);
@@ -33,6 +33,9 @@ export function AssistantScreen(props: PluginScreenProps) {
   };
   const mail = useMail();
   const mails = mail.data?.mails ?? [];
+  // While the first answer is pending the tab counts as available; once Agents Mail is missing or silent it is not.
+  const mailAvailable = (mail.data?.availability ?? "ok") === "ok";
+  const tab = effectiveTab(wantedTab, mailAvailable);
   const decisions = useDecisions().data?.decisions ?? [];
   const items = useItems().data?.items ?? [];
   const counts = {
@@ -101,14 +104,23 @@ export function AssistantScreen(props: PluginScreenProps) {
   const panel = (
     <View style={{ width: mode === "side" ? PANEL_WIDTH : undefined, flex: mode === "side" ? undefined : 1, borderLeftWidth: mode === "side" ? 1 : 0, borderLeftColor: theme.colors.border }}>
       <View style={{ flexDirection: "row", paddingHorizontal: 12, paddingVertical: 6, gap: 6, flexWrap: "wrap" }}>
-        {panelTabs(counts).map((t) => (
-          <Pressable key={t.id} accessibilityRole="tab" onPress={() => setTab(t.id)} style={[styles.button, { opacity: tab === t.id ? 1 : 0.6 }]}>
+        {panelTabs(counts, mailAvailable, mailHint(mail.data?.availability ?? "ok") ?? undefined).map((t) => (
+          <Pressable
+            key={t.id}
+            accessibilityRole="tab"
+            accessibilityState={{ disabled: t.disabled, selected: tab === t.id }}
+            accessibilityHint={t.hint ?? undefined}
+            disabled={t.disabled}
+            onPress={() => setTab(t.id)}
+            style={[styles.button, { opacity: t.disabled ? 0.4 : tab === t.id ? 1 : 0.6 }]}
+          >
             <Text style={styles.buttonText}>
               {t.label}
               {t.badge ? ` (${t.badge})` : ""}
             </Text>
           </Pressable>
         ))}
+        {mailAvailable ? null : <Text style={{ color: theme.colors.foregroundMuted, fontSize: 12, alignSelf: "center" }}>Mailbox: {mailHint(mail.data?.availability ?? "ok")}</Text>}
       </View>
       <View style={{ flex: 1 }}>
         {tab === "mailbox" ? (

@@ -1,12 +1,13 @@
 import { join } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
-import { decisionAnswerRpc, currentRpc, decisionListRpc, ensureRpc, itemListRpc, mailListRpc, mailReadRpc, resetRpc } from "./shared/rpc";
+import { decisionAnswerRpc, currentRpc, shimsRpc, decisionListRpc, ensureRpc, itemListRpc, mailListRpc, mailReadRpc, resetRpc } from "./shared/rpc";
 import { DEFAULT_PROVIDER, assistantSettings, settingsSchema } from "./shared/settings";
 import { MailHttp } from "./server/http";
 import { DecisionStore, decisionNudge } from "./server/decisions";
 import { ItemStore } from "./server/items";
 import { AgentsMailClient, AgentsMailError } from "./server/agentsmail";
 import { migrateLegacyMail } from "./server/migrate";
+import { ShimUsageStore, describeReport, shimReport } from "./server/shims";
 import { Delivery, PendingDeliveries, dropStaleOnce, statusOf, titleOf } from "./server/delivery";
 import { McpServer } from "./server/mcp";
 import { AssistantSession, StateFile, dataDir, type AssistantPaseo } from "./server/session";
@@ -42,6 +43,7 @@ export default function contribute(server: PluginServerContext) {
     }
   };
   void migrate();
+  const shimUsage = new ShimUsageStore(process.env.ASSISTANT_SHIM_USAGE ?? join(dataDir, "shim-usage.json"));
   const items = new ItemStore(process.env.ASSISTANT_ITEMS ?? join(dataDir, "items.json"));
   const decisions = new DecisionStore(process.env.ASSISTANT_DECISIONS ?? join(dataDir, "decisions.json"));
   const tokens = new CapabilityStore(process.env.ASSISTANT_CAPABILITIES ?? join(dataDir, "capabilities.json"));
@@ -105,6 +107,7 @@ export default function contribute(server: PluginServerContext) {
       agentsMail,
       decisions,
       items,
+      shimUsed: (tool) => shimUsage.record(tool),
       paseo: () => paseo as unknown as import("./server/manage").ManagePaseo | null,
       renew: async (input) => {
         if (!paseo) throw new Error("The Paseo API is not available yet; try again in a moment.");
@@ -135,6 +138,26 @@ export default function contribute(server: PluginServerContext) {
     capture(ctx);
     await ready;
     return session.ensure(ctx.paseo as unknown as AssistantPaseo);
+  });
+  /** Who still holds the old mail tool; the answer to "can the forwarders go". */
+  const reportShims = async () => {
+    if (!paseo) return null;
+    const { entries } = await (paseo as unknown as import("./server/manage").ManagePaseo).agents.list({ filter: { includeArchived: false } });
+    const live = (entries as { agent: { id: string } }[]).map((e) => e.agent.id);
+    return shimReport(tokens.agentIds(), live, shimUsage.read());
+  };
+  const logShims = () =>
+    void reportShims().then(
+      (r) => r && console.log(`assistant: ${describeReport(r)}`),
+      (error) => console.error("assistant: shim report failed", error),
+    );
+  const shimTimer = setInterval(logShims, 3_600_000);
+  setTimeout(logShims, 60_000);
+  server.handle(shimsRpc, async (_input, ctx) => {
+    capture(ctx);
+    const report = await reportShims();
+    if (!report) throw new Error("The Paseo API is not available yet.");
+    return report;
   });
   server.handle(currentRpc, async () => ({ agentId: session.currentAgentId() }));
   server.handle(resetRpc, async (_input, ctx) => {
@@ -193,6 +216,7 @@ export default function contribute(server: PluginServerContext) {
     removeArchived();
     removeTurnEnded();
     unsubscribeSettings();
+    clearInterval(shimTimer);
     delivery.stop();
     void http.stop();
   };

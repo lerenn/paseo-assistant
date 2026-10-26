@@ -8,13 +8,27 @@ export interface PanelCounts {
   openItems: number;
 }
 
-/** The tabs of the right-hand panel, in order, with the count each shows (empty at zero). */
-export function panelTabs(c: PanelCounts): { id: PanelTab; label: string; badge: string }[] {
+export const MAIL_HINT = "Agents Mail not installed";
+
+/** Why the Mailbox tab is disabled, by what the Assistant found. */
+export const mailHint = (availability: "ok" | "not-installed" | "unreachable" | "outdated"): string | null =>
+  availability === "ok" ? null : availability === "unreachable" ? "Agents Mail not answering" : availability === "outdated" ? "Agents Mail needs an update" : MAIL_HINT;
+
+/**
+ * The tabs of the right-hand panel, in order, with the count each shows (empty at zero). The Mailbox tab is a view on
+ * the Agents Mail plugin: without it the tab is disabled and says why, and the other tabs work as usual.
+ */
+export function panelTabs(c: PanelCounts, mailAvailable = true, hint: string = MAIL_HINT): { id: PanelTab; label: string; badge: string; disabled: boolean; hint: string | null }[] {
   return [
-    { id: "mailbox", label: "Mailbox", badge: countBadge(c.unreadMail) },
-    { id: "decisions", label: "Decisions", badge: countBadge(c.openDecisions) },
-    { id: "items", label: "Open items", badge: countBadge(c.openItems) },
+    { id: "mailbox", label: "Mailbox", badge: mailAvailable ? countBadge(c.unreadMail) : "", disabled: !mailAvailable, hint: mailAvailable ? null : hint },
+    { id: "decisions", label: "Decisions", badge: countBadge(c.openDecisions), disabled: false, hint: null },
+    { id: "items", label: "Open items", badge: countBadge(c.openItems), disabled: false, hint: null },
   ];
+}
+
+/** The tab to show: the wanted one, unless it is disabled, then Decisions. */
+export function effectiveTab(wanted: PanelTab, mailAvailable: boolean): PanelTab {
+  return wanted === "mailbox" && !mailAvailable ? "decisions" : wanted;
 }
 
 /** The count on the panel toggle: what needs the human's choice, as on the sidebar row. */

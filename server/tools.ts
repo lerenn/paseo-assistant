@@ -15,6 +15,8 @@ export interface ToolContext {
   items: ItemStore;
   /** The Paseo SDK, once a hook or RPC has handed it over; null before. */
   paseo(): ManagePaseo | null;
+  /** Called by the forwarding mail tools, to count the calls that keep them needed. */
+  shimUsed?(tool: string): void;
   /** Starts a new Assistant session with this handover (see AssistantSession.renew). */
   renew(input: { handover: string; heartbeatId?: string }): Promise<{ agentId: string }>;
   /** Best-effort title of an agent; falls back to its id. */
@@ -64,6 +66,7 @@ export const mailTools: ToolDef[] = [
     async run(input: z.output<typeof mailInput>, ctx) {
       const agentId = ctx.capability.agentId;
       if (!agentId) throw new Error("This agent is not known yet; try again after its first turn.");
+      ctx.shimUsed?.("assistant_mail");
       const name = await ctx.nameOf(agentId, ctx.capability.name);
       await viaAgentsMail(() => ctx.agentsMail.sendAsAgent({ agentId, name, subject: input.subject, body: input.body, kind: input.kind }));
       return `Mail sent to the Assistant. ${DEPRECATED}`;
@@ -75,6 +78,7 @@ export const mailTools: ToolDef[] = [
     roles: ["assistant"],
     input: z.object({ unreadOnly: z.boolean().default(true) }),
     async run(input: { unreadOnly: boolean }, ctx) {
+      ctx.shimUsed?.("assistant_mailbox");
       return viaAgentsMail(() => ctx.agentsMail.list({ unreadOnly: input.unreadOnly }));
     },
   },
@@ -84,6 +88,7 @@ export const mailTools: ToolDef[] = [
     roles: ["assistant"],
     input: z.object({ ids: z.array(z.string()).optional() }),
     async run(input: { ids?: string[] }, ctx) {
+      ctx.shimUsed?.("assistant_mark_read");
       return { marked: await viaAgentsMail(() => ctx.agentsMail.markRead(input.ids)) };
     },
   },

@@ -70,3 +70,16 @@ export const itemListRpc = defineRpc({
   input: z.object({}),
   output: z.object({ items: z.array(itemSchema) }),
 });
+
+/** Whether the forwarding `assistant_mail*` tools are still needed: which live agents hold them and how often they are called. */
+export const shimsRpc = defineRpc({
+  name: "assistant.shims",
+  input: z.object({}),
+  output: z.object({
+    liveHolders: z.array(z.string()),
+    capabilities: z.number(),
+    uses: z.number(),
+    lastUsedAt: z.number().nullable(),
+    removable: z.boolean(),
+  }),
+});

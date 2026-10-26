@@ -1,5 +1,5 @@
 import { existsSync, renameSync } from "node:fs";
-import { MailStore } from "./mailbox";
+import { readLegacyMail } from "./legacy";
 import type { AgentsMailClient } from "./agentsmail";
 
 /**
@@ -8,7 +8,7 @@ import type { AgentsMailClient } from "./agentsmail";
  */
 export async function migrateLegacyMail(file: string, client: AgentsMailClient): Promise<number | null> {
   if (!existsSync(file)) return null;
-  const mails = new MailStore(file).list();
+  const mails = readLegacyMail(file);
   // The former kinds were folded into `blocked`; Agents Mail has no use for them.
   const normalized = mails.map((m) => ({ ...m, kind: m.kind === "needs_louis" || m.kind === "needs_user" ? "blocked" : m.kind }));
   if (normalized.length > 0) await client.importMails(normalized);

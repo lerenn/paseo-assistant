@@ -61,6 +61,11 @@ export class CapabilityStore {
     this.save();
   }
 
+  /** Agent ids that hold a capability for the old `assistant_mail` tool (role agent, bound). */
+  agentIds(): string[] {
+    return Object.values(this.tokens).flatMap((c) => (c.role === "agent" && c.agentId ? [c.agentId] : []));
+  }
+
   /** The Assistant's token for the one it was created with, or null. */
   assistantToken(): string | null {
     return Object.entries(this.tokens).find(([, c]) => c.role === "assistant")?.[0] ?? null;
