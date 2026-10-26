@@ -164,23 +164,23 @@ export const mailTools: ToolDef[] = [
   {
     name: "assistant_item_add",
     description:
-      "Track something the human is waiting on but does not have to decide, for example \"waiting for the cluster rework PR 3\" or \"pin PR pending restart\". It shows in the Open items tab. For a real choice use assistant_decision_add instead. Title is one line; detail and an http(s) link are optional.",
+      "Track an open item. owner \"agent\" (default): something the human is waiting on but does not have to decide, for example \"waiting for the cluster rework PR 3\" or \"pin PR pending restart\". It shows in the Open items tab. owner \"human\": something the human must DO (merge a PR, run a command, enter a Secret, sign in): it shows in the Your actions tab, where detail is rendered as markdown with copyable code blocks, so write numbered steps and put commands in fenced code blocks. For a real choice use assistant_decision_add instead. Title is one line; detail (up to 8000 characters) and an http(s) link are optional.",
     roles: ["assistant"],
-    input: z.object({ title: z.string().min(1).max(200), detail: z.string().max(2000).optional(), link: z.string().max(500).optional() }),
-    async run(input: { title: string; detail?: string; link?: string }, ctx) {
+    input: z.object({ title: z.string().min(1).max(200), detail: z.string().max(8000).optional(), link: z.string().max(500).optional(), owner: z.enum(["human", "agent"]).default("agent").describe("human: something the user must DO (merge, run a command, enter a Secret, sign in); agent: a wait on an agent or a process.") }),
+    async run(input: { title: string; detail?: string; link?: string; owner: "human" | "agent" }, ctx) {
       const item = ctx.items.add(input);
-      return { id: item.id };
+      return { id: item.id, owner: item.owner };
     },
   },
   {
     name: "assistant_item_update",
     description: "Change the title, detail or link of an open item (an empty detail or link clears it). Fails on an unknown or closed id.",
     roles: ["assistant"],
-    input: z.object({ id: z.string().min(1), title: z.string().min(1).max(200).optional(), detail: z.string().max(2000).optional(), link: z.string().max(500).optional() }),
-    async run(input: { id: string; title?: string; detail?: string; link?: string }, ctx) {
+    input: z.object({ id: z.string().min(1), title: z.string().min(1).max(200).optional(), detail: z.string().max(8000).optional(), link: z.string().max(500).optional(), owner: z.enum(["human", "agent"]).optional() }),
+    async run(input: { id: string; title?: string; detail?: string; link?: string; owner?: "human" | "agent" }, ctx) {
       const { id, ...changes } = input;
       const item = ctx.items.update(id, changes);
-      return { id: item.id, title: item.title };
+      return { id: item.id, title: item.title, owner: item.owner };
     },
   },
   {

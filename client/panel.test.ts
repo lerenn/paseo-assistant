@@ -3,22 +3,23 @@ import { MAIL_HINT, effectiveTab, mailHint, panelLayout, panelTabs, toggleBadge 
 
 describe("panelTabs", () => {
   it("lists Mailbox, Decisions and Open items with their counts, empty at zero", () => {
-    expect(panelTabs({ unreadMail: 0, openDecisions: 0, openItems: 0 })).toEqual([
+    expect(panelTabs({ unreadMail: 0, openDecisions: 0, yourActions: 0, openItems: 0 })).toEqual([
       { id: "mailbox", label: "Mailbox", badge: "", disabled: false, hint: null },
       { id: "decisions", label: "Decisions", badge: "", disabled: false, hint: null },
+      { id: "actions", label: "Your actions", badge: "", disabled: false, hint: null },
       { id: "items", label: "Open items", badge: "", disabled: false, hint: null },
     ]);
-    expect(panelTabs({ unreadMail: 3, openDecisions: 2, openItems: 120 }).map((t) => t.badge)).toEqual(["3", "2", "99+"]);
+    expect(panelTabs({ unreadMail: 3, openDecisions: 2, yourActions: 4, openItems: 120 }).map((t) => t.badge)).toEqual(["3", "2", "4", "99+"]);
   });
   it("has no Chat tab: the chat is always shown", () => {
-    expect(panelTabs({ unreadMail: 0, openDecisions: 0, openItems: 0 }).map((t) => t.id)).not.toContain("chat");
+    expect(panelTabs({ unreadMail: 0, openDecisions: 0, yourActions: 0, openItems: 0 }).map((t) => t.id)).not.toContain("chat");
   });
 });
 
 describe("toggleBadge", () => {
   it("shows the open decisions only", () => {
-    expect(toggleBadge({ unreadMail: 9, openDecisions: 0, openItems: 9 })).toBe("");
-    expect(toggleBadge({ unreadMail: 9, openDecisions: 4, openItems: 9 })).toBe("4");
+    expect(toggleBadge({ unreadMail: 9, openDecisions: 0, yourActions: 9, openItems: 9 })).toBe("");
+    expect(toggleBadge({ unreadMail: 9, openDecisions: 4, yourActions: 9, openItems: 9 })).toBe("4");
   });
 });
 
@@ -32,13 +33,13 @@ describe("panelLayout", () => {
 });
 
 describe("Mailbox tab without Agents Mail", () => {
-  const counts = { unreadMail: 5, openDecisions: 2, openItems: 1 };
+  const counts = { unreadMail: 5, openDecisions: 2, yourActions: 3, openItems: 1 };
   it("is disabled with the hint and no count, while the other tabs work", () => {
     const tabs = panelTabs(counts, false);
     expect(tabs[0]).toEqual({ id: "mailbox", label: "Mailbox", badge: "", disabled: true, hint: MAIL_HINT });
     expect(MAIL_HINT).toBe("Agents Mail not installed");
     expect(tabs.slice(1).every((t) => !t.disabled && t.hint === null)).toBe(true);
-    expect(tabs.slice(1).map((t) => t.badge)).toEqual(["2", "1"]);
+    expect(tabs.slice(1).map((t) => t.badge)).toEqual(["2", "3", "1"]);
   });
   it("falls back to Decisions when the wanted tab is the disabled Mailbox", () => {
     expect(effectiveTab("mailbox", false)).toBe("decisions");
@@ -89,5 +90,15 @@ describe("panel width clamping", () => {
     expect(widthAfterDrag(380, 500, 1500)).toBe(MIN_PANEL_WIDTH);
     expect(widthAfterDrag(380, -2000, 1500)).toBe(900);
     expect(widthAfterDrag(380, 0, 1500)).toBe(380);
+  });
+});
+
+import { itemCounts } from "./panel";
+
+describe("itemCounts (Your actions and Open items)", () => {
+  const item = (owner: "human" | "agent" | undefined, closed = false) => ({ owner: owner as "human" | "agent", closed: closed ? { at: 1, note: null } : null });
+  it("splits open items by owner, ignores closed ones, and counts an item without an owner as the agent's", () => {
+    expect(itemCounts([item("human"), item("human"), item("agent"), item(undefined), item("human", true), item("agent", true)])).toEqual({ yourActions: 2, openItems: 2 });
+    expect(itemCounts([])).toEqual({ yourActions: 0, openItems: 0 });
   });
 });

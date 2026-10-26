@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -83,5 +83,50 @@ describe("item tools", () => {
     expect((await call(c, "assistant_item_close", { id: added.id })).result.isError).toBe(true);
     expect((await call(c, "assistant_item_add", { title: "x", link: "ftp://bad" })).result.isError).toBe(true);
     expect((await call(c, "assistant_item_add", { title: "" })).result.isError).toBe(true);
+  });
+});
+
+describe("item owner (Your actions)", () => {
+  it("defaults to agent, can be human on add, can be changed on update, and old items without an owner stay agent", () => {
+    const file = path.join(dir, "o.json");
+    const store = new ItemStore(file);
+    const wait = store.add({ title: "waiting for PR 3" });
+    const todo = store.add({ title: "Merge PR 3", owner: "human", detail: "1. Review\n2. Run:\n\n```sh\ngh pr merge 3\n```" });
+    expect(wait.owner).toBe("agent");
+    expect(todo.owner).toBe("human");
+    expect(store.update(wait.id, { owner: "human" }).owner).toBe("human");
+    expect(store.update(wait.id, { title: "renamed" }).owner).toBe("human"); // untouched by other updates
+    expect(new ItemStore(file).list().map((i) => i.owner).sort()).toEqual(["human", "human"]);
+    writeFileSync(path.join(dir, "old.json"), JSON.stringify([{ id: "x", title: "old", detail: null, link: null, addedAt: 1, updatedAt: 1, closed: null }]));
+    expect(new ItemStore(path.join(dir, "old.json")).list()[0].owner).toBe("agent");
+  });
+
+  it("the tools take and report owner, and keep the markdown detail whole", async () => {
+    const c: ToolContext = {
+      capability: { role: "assistant" },
+      agentsMail: new AgentsMailClient(path.join(dir, "none.json")),
+      decisions: new DecisionStore(path.join(dir, "d.json")),
+      items: new ItemStore(path.join(dir, "t.json")),
+      paseo: () => null,
+      renew: async () => ({ agentId: "x" }),
+      nameOf: async () => "x",
+    };
+    const call = async (name: string, args: unknown) => (await new McpServer(mailTools).handle({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }, c)) as any;
+    const steps = "1. Sign in\n\n```sh\naws sso login\n```\n" + "x".repeat(5000);
+    const added = JSON.parse((await call("assistant_item_add", { title: "Sign in to AWS", detail: steps, owner: "human" })).result.content[0].text);
+    expect(added.owner).toBe("human");
+    expect(c.items.list()[0].detail).toBe(steps.trim());
+    const plain = JSON.parse((await call("assistant_item_add", { title: "waiting" })).result.content[0].text);
+    expect(plain.owner).toBe("agent");
+    expect(JSON.parse((await call("assistant_item_update", { id: plain.id, owner: "human" })).result.content[0].text).owner).toBe("human");
+    expect((await call("assistant_item_add", { title: "x", owner: "robot" })).result.isError).toBe(true);
+  });
+
+  it("the prompt sends everything the human must do to owner human, to be closed when done", async () => {
+    const { ASSISTANT_PROMPT } = await import("./prompt");
+    expect(ASSISTANT_PROMPT).toContain("## Your actions");
+    for (const text of ['owner "human"', "merge a PR, run a command, enter a Secret, sign in", "fenced code block", "Close it with assistant_item_close", "what do I need to do?"]) {
+      expect(ASSISTANT_PROMPT, text).toContain(text);
+    }
   });
 });

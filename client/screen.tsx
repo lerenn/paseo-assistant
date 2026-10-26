@@ -10,7 +10,7 @@ import { ensureRpc, resetRpc, uiGetRpc, uiSetRpc } from "../shared/rpc";
 import { DecisionsBadge, DecisionsView, useDecisions } from "./decisions";
 import { ItemsView, useItems } from "./items";
 import { MailboxView, useMail } from "./mailbox";
-import { DEFAULT_PANEL_WIDTH, clampPanelWidth, effectiveTab, mailHint, panelLayout, panelMemory, panelTabs, toggleBadge, widthAfterDrag, type PanelTab } from "./panel";
+import { DEFAULT_PANEL_WIDTH, clampPanelWidth, effectiveTab, itemCounts, mailHint, panelLayout, panelMemory, panelTabs, toggleBadge, widthAfterDrag, type PanelTab } from "./panel";
 
 const SESSION_KEY = ["assistant", "session"];
 
@@ -69,7 +69,7 @@ export function AssistantScreen(props: PluginScreenProps) {
   const counts = {
     unreadMail: mails.filter((m) => !m.read).length,
     openDecisions: decisions.filter(isOpen).length,
-    openItems: items.filter((i) => !i.closed).length,
+    ...itemCounts(items),
   };
   const ensure = useRpc(ensureRpc);
   const reset = useRpc(resetRpc);
@@ -165,8 +165,10 @@ export function AssistantScreen(props: PluginScreenProps) {
           <MailboxView theme={theme} mails={mails} availability={mail.data?.availability} openAgent={openAgent} />
         ) : tab === "decisions" ? (
           <DecisionsView theme={theme} decisions={decisions} />
+        ) : tab === "actions" ? (
+          <ItemsView theme={theme} items={items} owner="human" />
         ) : (
-          <ItemsView theme={theme} items={items} />
+          <ItemsView theme={theme} items={items} owner="agent" />
         )}
       </View>
     </View>

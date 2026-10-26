@@ -4,6 +4,8 @@ import { z } from "zod";
 export const itemSchema = z.object({
   id: z.string(),
   title: z.string(),
+  /** Who has to act: `human` items are things the user must DO (shown in Your actions); `agent` ones are waits. Items saved before this field are `agent`. */
+  owner: z.enum(["human", "agent"]).default("agent"),
   detail: z.string().nullable(),
   /** An http(s) link to what is awaited (a PR, a run), or null. */
   link: z.string().nullable(),
@@ -12,6 +14,7 @@ export const itemSchema = z.object({
   closed: z.object({ at: z.number(), note: z.string().nullable() }).nullable(),
 });
 export type Item = z.output<typeof itemSchema>;
+export type ItemOwner = Item["owner"];
 
 export const isWebLink = (link: string): boolean => {
   try {
