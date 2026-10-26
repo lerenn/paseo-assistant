@@ -122,6 +122,8 @@ describe("AssistantSession", () => {
     expect(sent).toHaveLength(1);
     expect(ASSISTANT_PROMPT).toContain("assistant_mailbox");
     expect(ALLOWED_TOOLS).toContain("mcp__assistant__assistant_mailbox");
+    expect(ALLOWED_TOOLS).toContain("mcp__assistant__assistant_decision_add");
+    expect(ASSISTANT_PROMPT).toContain("assistant_decision_add");
     expect(ALLOWED_TOOLS).toContain("mcp__paseo__create_heartbeat");
     expect(DISALLOWED_TOOLS).not.toContain("mcp__paseo__create_heartbeat");
   });

@@ -1,9 +1,10 @@
 import { join } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
-import { ensureRpc, mailListRpc, mailReadRpc, resetRpc } from "./shared/rpc";
+import { decisionAnswerRpc, decisionListRpc, ensureRpc, mailListRpc, mailReadRpc, resetRpc } from "./shared/rpc";
 import { DEFAULT_PROVIDER, assistantSettings, settingsSchema } from "./shared/settings";
 import { MailHttp } from "./server/http";
 import { CAPABILITY_ENV, createContext, injectMail, parseLabelRules, shouldInject } from "./server/inject";
+import { DecisionStore, decisionNudge } from "./server/decisions";
 import { MailStore } from "./server/mailbox";
 import { McpServer } from "./server/mcp";
 import { AssistantSession, StateFile, dataDir, type AssistantPaseo } from "./server/session";
@@ -24,6 +25,7 @@ export default function contribute(server: PluginServerContext) {
   const unsubscribeSettings = settings.subscribe(apply);
 
   const mailbox = new MailStore(process.env.ASSISTANT_MAILBOX ?? join(dataDir, "mailbox.json"));
+  const decisions = new DecisionStore(process.env.ASSISTANT_DECISIONS ?? join(dataDir, "decisions.json"));
   const tokens = new CapabilityStore(process.env.ASSISTANT_CAPABILITIES ?? join(dataDir, "capabilities.json"));
 
   // The Paseo API only reaches a plugin through hook and RPC contexts; keep the first one seen.
@@ -43,11 +45,23 @@ export default function contribute(server: PluginServerContext) {
     },
   );
 
+  /** Messages the Assistant now: "steer" joins a running turn and starts one when it is idle. */
+  const nudge = (text: string): Promise<void> => {
+    const assistantId = session.currentAgentId();
+    const send = assistantId && paseo ? paseo.agents.ref(assistantId).send : undefined;
+    if (!assistantId || !paseo || !send) return Promise.resolve();
+    return send.call(paseo.agents.ref(assistantId), text, { activeTurnBehavior: "steer" }).then(
+      () => undefined,
+      (error) => console.error("assistant: could not message the Assistant", error),
+    );
+  };
+
   const http = new MailHttp({
     tokens,
     mcp: new McpServer(mailTools),
     context: () => ({
       mailbox,
+      decisions,
       nameOf: async (agentId, hint) => {
         if (hint) return hint;
         try {
@@ -59,13 +73,7 @@ export default function contribute(server: PluginServerContext) {
       },
       onMail: (mail) => {
         if (mail.kind !== "needs_louis") return;
-        const assistantId = session.currentAgentId();
-        if (!assistantId || !paseo) return;
-        // Wake the Assistant now instead of waiting for its heartbeat.
-        void paseo.agents
-          .ref(assistantId)
-          .send?.(`A needs_louis mail arrived from ${mail.agentName}: "${mail.subject}". Read the mailbox and surface it now.`, { activeTurnBehavior: "steer" })
-          .catch((error) => console.error("assistant: could not wake the Assistant", error));
+        nudge(`A needs_louis mail arrived from ${mail.agentName}: "${mail.subject}". Read the mailbox and surface it now.`);
       },
     }),
   });
@@ -91,6 +99,13 @@ export default function contribute(server: PluginServerContext) {
     return session.reset(ctx.paseo as unknown as AssistantPaseo);
   });
   server.handle(mailListRpc, async () => ({ mails: mailbox.list() }));
+  server.handle(decisionListRpc, async () => ({ decisions: decisions.list() }));
+  server.handle(decisionAnswerRpc, async (input, ctx) => {
+    capture(ctx);
+    const decision = decisions.answer(input.id, input.answer, input.other);
+    await nudge(decisionNudge(decision));
+    return { decision };
+  });
   server.handle(mailReadRpc, async (input) => ({ marked: mailbox.markRead(input.ids) }));
 
   const removeCreate = server.before("agent.create", async ({ request }, ctx) => {

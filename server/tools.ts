@@ -1,11 +1,14 @@
 import { z } from "zod";
 import { MAIL_KINDS, type Mail } from "../shared/mail";
+import { MAX_OPTIONS, MIN_OPTIONS } from "../shared/decision";
+import type { DecisionStore } from "./decisions";
 import type { MailStore } from "./mailbox";
 import type { Capability, Role } from "./tokens";
 
 export interface ToolContext {
   capability: Capability;
   mailbox: MailStore;
+  decisions: DecisionStore;
   /** Best-effort title of an agent; falls back to its id. */
   nameOf(agentId: string, hint?: string): Promise<string>;
   /** Called after a mail is stored, e.g. to wake the Assistant on `needs_louis`. */
@@ -64,6 +67,21 @@ export const mailTools: ToolDef[] = [
     input: z.object({ ids: z.array(z.string()).optional() }),
     async run(input: { ids?: string[] }, ctx) {
       return { marked: ctx.mailbox.markRead(input.ids) };
+    },
+  },
+  {
+    name: "assistant_decision_add",
+    description:
+      "Queue a decision for the human, who answers whenever they like in the Decisions tab. Give a question, 2 to 4 distinct options and the recommended one (it must be one of the options). The human can also answer in free text. Their answer comes back to you as a message with the decision id, question and answer.",
+    roles: ["assistant"],
+    input: z.object({
+      question: z.string().min(1).max(1000),
+      options: z.array(z.string().min(1).max(300)).min(MIN_OPTIONS).max(MAX_OPTIONS),
+      recommended: z.string().min(1).describe("One of the options."),
+    }),
+    async run(input: { question: string; options: string[]; recommended: string }, ctx) {
+      const decision = ctx.decisions.add(input);
+      return { id: decision.id, options: decision.options };
     },
   },
 ];

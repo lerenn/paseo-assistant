@@ -32,3 +32,19 @@ export const mailReadRpc = defineRpc({
   input: z.object({ ids: z.array(z.string()).optional() }),
   output: z.object({ marked: z.number() }),
 });
+
+import { decisionSchema } from "./decision";
+
+/** Open decisions first (oldest first), then answered ones (newest first). */
+export const decisionListRpc = defineRpc({
+  name: "assistant.decision.list",
+  input: z.object({}),
+  output: z.object({ decisions: z.array(decisionSchema) }),
+});
+
+/** Answers a decision with one of its options, or free text when `other` is true. */
+export const decisionAnswerRpc = defineRpc({
+  name: "assistant.decision.answer",
+  input: z.object({ id: z.string(), answer: z.string().min(1).max(5000), other: z.boolean() }),
+  output: z.object({ decision: decisionSchema }),
+});
