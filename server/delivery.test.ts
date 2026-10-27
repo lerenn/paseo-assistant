@@ -174,6 +174,7 @@ describe("statusOf (regression: answers stuck in the queue)", () => {
       status: async () => statusOf(await refresh()),
       decisionText: (id) => `answer ${id}`,
       send,
+      reviewPrompt: () => "review",
       delivered: (ids) => delivered.push(ids),
       debounceMs: 100,
       pollMs: 1000,
