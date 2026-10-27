@@ -1,5 +1,6 @@
 import { defineSettings } from "@getpaseo/plugin";
 import { z } from "zod";
+import { DEFAULT_TASK_REVIEW_MINUTES } from "./review";
 
 export const DEFAULT_PROVIDER = "claude/claude-sonnet-5-5";
 
@@ -14,6 +15,8 @@ export const settingsSchema = z.object({
    * are told to mail the Assistant. An agent with a label matching an include rule is always
    * included; one matching an exclude rule is left out. Subagents are always left out.
    */
+  /** Minutes between task reviews of the Assistant ("Look over each current task..."); 0 turns them off. */
+  taskReviewMinutes: z.number().int().min(0).max(1440).default(DEFAULT_TASK_REVIEW_MINUTES),
   mailIncludeLabels: z.string().default("paseo.factory.supervisor=1"),
   mailExcludeLabels: z.string().default("paseo.factory=1"),
 });
