@@ -4,7 +4,7 @@ import path from "node:path";
 import { homedir as osHome } from "node:os";
 import { HandoverStore, handoverPrompt, type Handover } from "./handover";
 import { memoryRules } from "./memory";
-import { ALLOWED_TOOLS, DISALLOWED_TOOLS, ASSISTANT_PROMPT, KICKOFF_PROMPT } from "./prompt";
+import { ALLOWED_TOOLS, DISALLOWED_TOOLS, ASSISTANT_PROMPT, kickoffPrompt } from "./prompt";
 
 export const TITLE = "Assistant";
 const RENEW_GAP_MIN = 10;
@@ -114,6 +114,8 @@ export class AssistantSession {
     private readonly home: string = osHome(),
     /** How long the old session is left to finish its tool call before it is archived. */
     private readonly archiveDelayMs = 5_000,
+    /** The mailbox heartbeat interval, from the settings. */
+    private readonly heartbeatMinutes: () => number = () => 15,
   ) {}
 
   /** The current Assistant agent, if any. */
@@ -147,7 +149,7 @@ export class AssistantSession {
       const old = this.state.read();
       const record: Handover = { text: input.handover, heartbeatId: input.heartbeatId ?? null, at: now(), fromAgentId: old?.agentId ?? null, toAgentId: null };
       this.handovers.write(record);
-      const created = await this.create(paseo, handoverPrompt(record, KICKOFF_PROMPT));
+      const created = await this.create(paseo, handoverPrompt(record, kickoffPrompt(this.heartbeatMinutes())));
       this.handovers.write({ ...record, toAgentId: created.agentId });
       if (old) setTimeout(() => void this.archive(paseo, old), this.archiveDelayMs);
       return created;
@@ -185,7 +187,7 @@ export class AssistantSession {
     await paseo.workspaces.archive(state.workspaceId).catch(() => undefined);
   }
 
-  private async create(paseo: AssistantPaseo, firstPrompt: string = KICKOFF_PROMPT): Promise<AssistantState> {
+  private async create(paseo: AssistantPaseo, firstPrompt: string = kickoffPrompt(this.heartbeatMinutes())): Promise<AssistantState> {
     mkdirSync(this.workDir, { recursive: true });
     const provider = this.provider();
     const mail = await this.mail();

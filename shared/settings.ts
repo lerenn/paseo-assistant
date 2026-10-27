@@ -1,6 +1,6 @@
 import { defineSettings } from "@getpaseo/plugin";
 import { z } from "zod";
-import { DEFAULT_TASK_REVIEW_MINUTES } from "./review";
+import { DEFAULT_MAILBOX_HEARTBEAT_MINUTES, DEFAULT_TASK_REVIEW_MINUTES } from "./review";
 
 export const DEFAULT_PROVIDER = "claude/claude-sonnet-5-5";
 
@@ -17,6 +17,14 @@ export const settingsSchema = z.object({
    */
   /** Minutes between task reviews of the Assistant ("Look over each current task..."); 0 turns them off. */
   taskReviewMinutes: z.number().int().min(0).max(1440).default(DEFAULT_TASK_REVIEW_MINUTES),
+  /** Minutes between the mailbox heartbeats ("Process the Assistant mailbox"). A change re-creates the heartbeat. */
+  mailboxHeartbeatMinutes: z.number().int().min(1).max(1440).default(DEFAULT_MAILBOX_HEARTBEAT_MINUTES),
+  /** Nudge guard rails (see assistant_nudge_check): minutes of silence before an agent may be nudged. */
+  nudgeIdleMinutes: z.number().int().min(1).max(1440).default(30),
+  /** At most this many nudges per agent per hour. */
+  nudgeMaxPerHour: z.number().int().min(1).max(60).default(1),
+  /** After this many nudges without progress the human is asked instead. */
+  nudgeEscalateAfter: z.number().int().min(1).max(20).default(2),
   mailIncludeLabels: z.string().default("paseo.factory.supervisor=1"),
   mailExcludeLabels: z.string().default("paseo.factory=1"),
 });
