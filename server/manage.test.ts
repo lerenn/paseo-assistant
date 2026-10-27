@@ -114,6 +114,28 @@ describe("agent management tools", () => {
     }
   });
 
+  it("passes the profile in the Kubernetes options, next to cwd, only when set", async () => {
+    const { paseo, calls } = fakePaseo();
+    await createWorkspace(paseo, { project: "p1", title: "Big Build", profile: "builder" });
+    expect(calls.workspace[0].runtime).toEqual({ id: "kubernetes", options: { cwd: "/repo/mono", slug: "big-build", ref: null, title: "Big Build", profile: "builder" } });
+    await createWorkspace(paseo, { project: "p1", title: "Plain" });
+    expect(calls.workspace[1].runtime.options).not.toHaveProperty("profile");
+    await createWorkspace(paseo, { project: "p1", title: "Local", runtime: "local", profile: "builder" });
+    expect(calls.workspace[2].runtime).toEqual({ id: "local" });
+  });
+
+  it("validates the profile argument of the tool", async () => {
+    const { paseo, calls } = fakePaseo();
+    const dir = mkdtempSync(path.join(tmpdir(), "manage-"));
+    const c: ToolContext = { capability: { role: "assistant" }, agentsMail: new AgentsMailClient(path.join(dir, "n.json")), decisions: new DecisionStore(path.join(dir, "d.json")), items: new ItemStore(path.join(dir, "i.json")), paseo: () => paseo, renew: async () => ({ agentId: "new" }), nameOf: async () => "x" };
+    const call = (args: unknown) => new McpServer(mailTools).handle({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "assistant_workspace_create", arguments: args } }, c) as Promise<any>;
+    const bad = await call({ project: "p1", title: "t", profile: "Bad_Name" });
+    expect(bad.error?.code === -32602 || bad.result?.isError).toBeTruthy();
+    expect(calls.workspace).toHaveLength(0);
+    await call({ project: "p1", title: "t", profile: "builder" });
+    expect(calls.workspace[0].runtime.options.profile).toBe("builder");
+  });
+
   it("can create a local workspace, and refuses an unknown or ambiguous project", async () => {
     const { paseo, calls } = fakePaseo();
     await createWorkspace(paseo, { project: "lab", title: "Daemon work", runtime: "local" });

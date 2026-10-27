@@ -61,7 +61,7 @@ function findProject(projects: Project[], ref: string): Project {
  * Creates a workspace in a project, by default in a Kubernetes Runtime pod. The workspace is made by the plugin,
  * so nothing links it to the Assistant agent.
  */
-export async function createWorkspace(paseo: ManagePaseo, input: { project: string; title: string; runtime?: "kubernetes" | "local"; slug?: string }) {
+export async function createWorkspace(paseo: ManagePaseo, input: { project: string; title: string; runtime?: "kubernetes" | "local"; slug?: string; profile?: string }) {
   const { projects } = await paseo.projects.list();
   const project = findProject(projects as Project[], input.project);
   const runtime = input.runtime ?? "kubernetes";
@@ -71,7 +71,7 @@ export async function createWorkspace(paseo: ManagePaseo, input: { project: stri
     title,
     runtime:
       runtime === "kubernetes"
-        ? { id: "kubernetes", options: { cwd: project.projectRootPath, slug: input.slug ?? slugOf(title), ref: null, title } }
+        ? { id: "kubernetes", options: { cwd: project.projectRootPath, slug: input.slug ?? slugOf(title), ref: null, title, ...(input.profile ? { profile: input.profile } : {}) } }
         : { id: "local" },
   });
   return { workspaceId: workspace.id, projectId: project.projectId, runtime };

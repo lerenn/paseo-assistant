@@ -238,15 +238,16 @@ export const mailTools: ToolDef[] = [
   {
     name: "assistant_workspace_create",
     description:
-      "Create a workspace in a project (by id, name or root path), in a Kubernetes Runtime pod by default (runtime \"local\" runs it on the daemon, only for daemon work). It is made by the plugin, not as your child, and outlives your session. Returns the workspace id for assistant_agent_create.",
+      "Create a workspace in a project (by id, name or root path), in a Kubernetes Runtime pod by default (runtime \"local\" runs it on the daemon, only for daemon work). It is made by the plugin, not as your child, and outlives your session. Use profile=builder for clone/build-heavy work (monorepo, Paseo fork, big installs); it applies to the Kubernetes Runtime only. Returns the workspace id for assistant_agent_create.",
     roles: ["assistant"],
     input: z.object({
       project: z.string().min(1),
       title: z.string().min(1).max(100),
       runtime: z.enum(["kubernetes", "local"]).default("kubernetes"),
       slug: z.string().min(1).max(40).optional(),
+      profile: z.string().regex(/^[a-z][a-z0-9-]{0,31}$/).optional(),
     }),
-    async run(input: { project: string; title: string; runtime: "kubernetes" | "local"; slug?: string }, ctx) {
+    async run(input: { project: string; title: string; runtime: "kubernetes" | "local"; slug?: string; profile?: string }, ctx) {
       return createWorkspace(needPaseo(ctx), input);
     },
   },
