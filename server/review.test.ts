@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { TASK_REVIEW_PROMPT } from "../shared/review";
+const TASK_REVIEW_PROMPT = "review prompt";
 import { ReviewScheduler } from "./review";
 
 const MIN = 60_000;
@@ -7,7 +7,7 @@ const MIN = 60_000;
 function setup(initial: { minutes: number; status: string | null }) {
   const state = { ...initial };
   const send = vi.fn(async (_text: string) => {});
-  const scheduler = new ReviewScheduler({ minutes: () => state.minutes, status: async () => state.status, send, pollMs: 1000 });
+  const scheduler = new ReviewScheduler({ minutes: () => state.minutes, status: async () => state.status, send, prompt: () => TASK_REVIEW_PROMPT, pollMs: 1000 });
   return { state, send, scheduler };
 }
 

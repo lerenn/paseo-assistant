@@ -15,6 +15,7 @@ import { McpServer } from "./server/mcp";
 import { AssistantSession, StateFile, dataDir, type AssistantPaseo } from "./server/session";
 import { CAPABILITY_ENV, CapabilityStore } from "./server/tokens";
 import { mailTools } from "./server/tools";
+import { buildTaskReviewPrompt } from "./shared/review";
 import { ReviewScheduler } from "./server/review";
 import { IdleMessage } from "./server/idle-message";
 import { heartbeatChangedPrompt } from "./server/prompt";
@@ -93,6 +94,7 @@ export default function contribute(server: PluginServerContext) {
       return decision.cancelledAt !== null ? cancelNudge(decision) : decision.answer ? decisionNudge(decision) : null;
     },
     send: nudge,
+    reviewPrompt: () => buildTaskReviewPrompt(items.list()),
   });
 
   // Answers queued before a restart are delivered once the Assistant is reachable and idle.
@@ -114,6 +116,7 @@ export default function contribute(server: PluginServerContext) {
     minutes: () => latest.taskReviewMinutes,
     status: reviewStatus,
     send: nudge,
+    prompt: () => buildTaskReviewPrompt(items.list()),
   });
   void ready.then(() => reviews?.start());
   heartbeatChange = new IdleMessage({ status: reviewStatus, send: nudge });

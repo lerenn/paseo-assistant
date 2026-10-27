@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Delivery, PendingDeliveries, REVIEW_PROMPT, WAKE_PROMPT } from "./delivery";
+import { Delivery, PendingDeliveries, WAKE_PROMPT } from "./delivery";
 
 let dir: string;
 beforeEach(() => {
@@ -14,6 +14,7 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
+const REVIEW_PROMPT = "review prompt";
 const setup = (statuses: Array<string | null | Error> | { current: string | null }) => {
   const queue = new PendingDeliveries(path.join(dir, "q.json"));
   const send = vi.fn(async (_text: string) => {});
@@ -31,6 +32,7 @@ const setup = (statuses: Array<string | null | Error> | { current: string | null
     status,
     decisionText: (id) => `answer ${id}`,
     send,
+    reviewPrompt: () => REVIEW_PROMPT,
     debounceMs: 100,
     pollMs: 1000,
   });
@@ -121,7 +123,6 @@ describe("Delivery", () => {
 describe("Delivery.requestReview", () => {
   it("sends the exact prompt at once to an idle Assistant, alone", async () => {
     const { send, delivery } = setup({ current: "idle" });
-    expect(REVIEW_PROMPT).toBe("Look over each current task, check its status and nudge the agents if needed");
     delivery.notifyMail();
     delivery.requestReview();
     await tick(10);

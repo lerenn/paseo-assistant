@@ -255,7 +255,7 @@ describe("cancelling a decision (the × on its card)", () => {
     const sent: string[] = [];
     const state = { status: "running" as string | null };
     vi.useFakeTimers();
-    const delivery = new Delivery({ queue, status: async () => state.status, decisionText: () => cancelNudge(d), send: async (t) => void sent.push(t), debounceMs: 10, pollMs: 100 });
+    const delivery = new Delivery({ queue, status: async () => state.status, decisionText: () => cancelNudge(d), send: async (t) => void sent.push(t), reviewPrompt: () => "review", debounceMs: 10, pollMs: 100 });
     delivery.enqueueDecision(d.id);
     await vi.advanceTimersByTimeAsync(50);
     expect(sent).toEqual([]); // the Assistant is running: never interrupted
