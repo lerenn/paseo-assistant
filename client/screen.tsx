@@ -9,6 +9,7 @@ import { isOpen } from "../shared/decision";
 import { ensureRpc, resetRpc, uiGetRpc, uiSetRpc } from "../shared/rpc";
 import { DecisionsBadge, DecisionsView, useDecisions } from "./decisions";
 import { ItemsView, useItems } from "./items";
+import { SettingsView } from "./settings-view";
 import { MailboxView, useMail } from "./mailbox";
 import { DEFAULT_PANEL_WIDTH, DEFAULT_TAB, clampPanelWidth, effectiveTab, itemCounts, mailHint, panelLayout, panelMemory, panelTabs, toggleBadge, widthAfterDrag, type PanelTab } from "./panel";
 
@@ -28,6 +29,7 @@ export function AssistantScreen(props: PluginScreenProps) {
     setOpenState(value);
   };
   const setTab = (value: PanelTab) => setTabState(value);
+  const [showSettings, setShowSettings] = useState(false);
   // The panel's width: dragged live, saved on release, restored from the daemon.
   const { width: windowWidth } = useWindowDimensions();
   const getUi = useRpc(uiGetRpc);
@@ -177,6 +179,9 @@ export function AssistantScreen(props: PluginScreenProps) {
         <Pressable accessibilityRole="button" accessibilityLabel="New session" disabled={restart.isPending} onPress={() => restart.mutate()} style={styles.button}>
           <Text style={styles.buttonText}>{restart.isPending ? "Starting…" : "New session"}</Text>
         </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Settings" onPress={() => setShowSettings(!showSettings)} style={[styles.button, { opacity: showSettings ? 1 : 0.7 }]}>
+          <Text style={styles.buttonText}>Settings</Text>
+        </Pressable>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={open ? "Hide the side panel" : "Show the side panel"}
@@ -187,7 +192,8 @@ export function AssistantScreen(props: PluginScreenProps) {
           {badge && !open ? <DecisionsBadge text={badge} /> : null}
         </Pressable>
       </View>
-      <View style={{ flex: 1, flexDirection: "row" }}>
+      {showSettings ? <SettingsView theme={theme} onClose={() => setShowSettings(false)} /> : null}
+      <View style={{ flex: 1, flexDirection: "row", display: showSettings ? "none" : "flex" }}>
         {mode === "full" ? null : <View style={{ flex: 1 }}>{chat}</View>}
         {mode === "hidden" ? null : panel}
       </View>
