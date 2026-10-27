@@ -8,6 +8,7 @@ import type { ItemStore } from "./items";
 import { ManageError, createAgent, createWorkspace, listAgents, listProjects, type ManagePaseo } from "./manage";
 import { AgentsMailError, type AgentsMailClient } from "./agentsmail";
 import type { Capability, Role } from "./tokens";
+import type { NudgeVerdict } from "./nudge";
 
 export interface ToolContext {
   capability: Capability;
@@ -21,6 +22,8 @@ export interface ToolContext {
   shimUsed?(tool: string): void;
   /** Starts a new Assistant session with this handover (see AssistantSession.renew). */
   renew(input: { handover: string; heartbeatId?: string }): Promise<{ agentId: string }>;
+  /** The nudge guard rails; records the nudge when it allows one. */
+  nudgeCheck?(input: { agentId: string; pendingInbox?: boolean }): Promise<NudgeVerdict>;
   /** Best-effort title of an agent; falls back to its id. */
   nameOf(agentId: string, hint?: string): Promise<string>;
 }
@@ -271,6 +274,17 @@ export const mailTools: ToolDef[] = [
     input: z.object({ createdByAssistant: z.boolean().default(true) }),
     async run(input: { createdByAssistant: boolean }, ctx) {
       return listAgents(needPaseo(ctx), input);
+    },
+  },
+  {
+    name: "assistant_nudge_check",
+    description:
+      "Ask before you nudge an agent (send_agent_prompt to ask for progress) during a task review; nudge only when it says allowed. Rules enforced here: only agents idle or silent for 30+ min with no active turn and no pending human decision (pass pendingInbox true if inbox_list shows an item about it); at most one nudge per agent per hour; after two nudges without progress it queues a decision for the human instead (escalated) and you must not nudge again; a coordinator's subagent is never nudged, ask askInstead (its coordinator). When it allows, the nudge is recorded, so call it once per nudge, right before sending. Returns allowed, why, and the remaining budget.",
+    roles: ["assistant"],
+    input: z.object({ agentId: z.string().min(1), pendingInbox: z.boolean().optional() }),
+    async run(input: { agentId: string; pendingInbox?: boolean }, ctx) {
+      if (!ctx.nudgeCheck) throw new Error("The nudge check is not available.");
+      return ctx.nudgeCheck(input);
     },
   },
   {

@@ -3,6 +3,7 @@ import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { decisionCancelRpc, decisionAnswerRpc, currentRpc, shimsRpc, uiGetRpc, uiSetRpc, decisionListRpc, ensureRpc, itemListRpc, mailListRpc, mailReadRpc, resetRpc } from "./shared/rpc";
 import { DEFAULT_PROVIDER, assistantSettings, settingsSchema } from "./shared/settings";
 import { MailHttp } from "./server/http";
+import { isOpen } from "./shared/decision";
 import { DecisionStore, cancelNudge, decisionNudge } from "./server/decisions";
 import { noteForTurn } from "./server/ask-check";
 import { UiPrefs } from "./server/ui-prefs";
@@ -14,6 +15,8 @@ import { McpServer } from "./server/mcp";
 import { AssistantSession, StateFile, dataDir, type AssistantPaseo } from "./server/session";
 import { CAPABILITY_ENV, CapabilityStore } from "./server/tokens";
 import { mailTools } from "./server/tools";
+import { ReviewScheduler } from "./server/review";
+import { NudgeLedger, agentInfos, nudgeCheck } from "./server/nudge";
 
 const DEFAULT_PORT = 47842;
 
@@ -24,7 +27,9 @@ export default function contribute(server: PluginServerContext) {
   let latest: Settings = settingsSchema.parse({});
   const apply = (state: Awaited<ReturnType<typeof settings.read>>) => {
     latest = state.status === "ready" ? state.values : settingsSchema.parse({});
+    reviews?.reschedule();
   };
+  let reviews: ReviewScheduler | null = null;
   const ready = settings.read().then(apply);
   const unsubscribeSettings = settings.subscribe(apply);
 
@@ -88,6 +93,19 @@ export default function contribute(server: PluginServerContext) {
   }
   delivery.poke();
 
+  /** The periodic task review: queued, never steered, one at a time; the interval is a setting (0 = off). */
+  reviews = new ReviewScheduler({
+    minutes: () => latest.taskReviewMinutes,
+    status: async () => {
+      const assistantId = session.currentAgentId();
+      if (!assistantId || !paseo) return null;
+      return statusOf(await paseo.agents.ref(assistantId).refresh());
+    },
+    send: nudge,
+  });
+  void ready.then(() => reviews?.start());
+  const nudges = new NudgeLedger(process.env.ASSISTANT_NUDGES ?? join(dataDir, "nudges.json"));
+
   const http = new MailHttp({
     tokens,
     mcp: new McpServer(mailTools),
@@ -96,6 +114,22 @@ export default function contribute(server: PluginServerContext) {
       decisions,
       items,
       shimUsed: (tool) => shimUsage.record(tool),
+      nudgeCheck: async ({ agentId, pendingInbox }) => {
+        if (!paseo) throw new Error("The Paseo API is not available yet; try again in a moment.");
+        const listed = await (paseo as unknown as import("./server/manage").ManagePaseo).agents.list({ filter: { includeArchived: false, includeBackground: true } });
+        return nudgeCheck(agentId, { pendingInbox }, {
+          agents: async () => agentInfos(listed.entries),
+          ledger: nudges,
+          pendingDecision: (agent) =>
+            decisions.list().some((d) => isOpen(d) && [agent.id, agent.id.slice(0, 8), agent.title].some((k) => k && d.question.includes(k))),
+          escalate: (agent, count) =>
+            decisions.add({
+              question: `${agent.title ?? agent.id} (${agent.id.slice(0, 8)}) stays silent after ${count} nudges from the Assistant. What now?`,
+              options: ["Keep waiting", "Look at it myself", "Archive the agent"],
+              recommended: "Look at it myself",
+            }),
+        });
+      },
       paseo: () => paseo as unknown as import("./server/manage").ManagePaseo | null,
       renew: async (input) => {
         if (!paseo) throw new Error("The Paseo API is not available yet; try again in a moment.");
@@ -246,6 +280,7 @@ export default function contribute(server: PluginServerContext) {
     removeTurnEnded();
     removePrompt();
     unsubscribeSettings();
+    reviews?.stop();
     clearInterval(shimTimer);
     delivery.stop();
     void http.stop();
