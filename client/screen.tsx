@@ -107,6 +107,8 @@ export function AssistantScreen(props: PluginScreenProps) {
         backgroundColor: theme.colors.surface2,
       },
       buttonText: { color: theme.colors.foreground, fontSize: 13 },
+      primaryButton: { backgroundColor: theme.colors.accent },
+      primaryButtonText: { color: theme.colors.accentForeground, fontSize: 13 },
       chat: { gap: 8 },
       note: { color: theme.colors.foregroundMuted, padding: 16 },
       error: { color: theme.colors.foreground, padding: 16 },
@@ -175,10 +177,10 @@ export function AssistantScreen(props: PluginScreenProps) {
             accessibilityState={{ disabled: reviewGate.disabled }}
             disabled={reviewGate.disabled}
             onPress={() => void runReview(!!session.data, () => reviewTasks({}), setReview)}
-            style={[styles.button, { opacity: reviewGate.disabled ? 0.4 : 1 }, { cursor: reviewGate.disabled ? "not-allowed" : "pointer" } as object]}
+            style={[styles.button, styles.primaryButton, { opacity: reviewGate.disabled ? 0.4 : 1 }, { cursor: reviewGate.disabled ? "not-allowed" : "pointer" } as object]}
             {...({ title: reviewGate.hint ?? "Ask the Assistant to look over each current task and nudge the agents" } as object)}
           >
-            <Text style={styles.buttonText}>{reviewLabel(review)}</Text>
+            <Text style={styles.primaryButtonText}>{reviewLabel(review)}</Text>
           </Pressable>
         ) : null}
         {mailAvailable ? null : <Text style={{ color: theme.colors.foregroundMuted, fontSize: 12, alignSelf: "center" }}>Mailbox: {mailHint(mail.data?.availability ?? "ok")}</Text>}
