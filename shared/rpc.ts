@@ -103,3 +103,13 @@ export const uiSetRpc = defineRpc({
   input: z.object({ panelWidth: z.number().nullable() }),
   output: z.object({ panelWidth: z.number().nullable() }),
 });
+
+/**
+ * The Review tasks button: asks the Assistant to look over its current tasks, as if the user had typed it. `sent` when it
+ * was idle, `queued` when it is mid-turn (the message goes out once the turn ends), `no-assistant` when none exists yet.
+ */
+export const reviewTasksRpc = defineRpc({
+  name: "assistant.review-tasks",
+  input: z.object({}),
+  output: z.object({ result: z.enum(["sent", "queued", "no-assistant"]) }),
+});
