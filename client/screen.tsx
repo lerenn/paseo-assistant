@@ -3,13 +3,14 @@ import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import * as hostUi from "@getpaseo/plugin/client/ui";
 import { Icon } from "@getpaseo/plugin/client/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useRef, useState, type ComponentType } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { PanResponder, Pressable, Text, View, useWindowDimensions } from "react-native";
 import { isOpen } from "../shared/decision";
-import { ensureRpc, resetRpc, uiGetRpc, uiSetRpc } from "../shared/rpc";
+import { ensureRpc, resetRpc, reviewTasksRpc, uiGetRpc, uiSetRpc } from "../shared/rpc";
 import { DecisionsBadge, DecisionsView, useDecisions } from "./decisions";
 import { ItemsView, useItems } from "./items";
 import { MailboxView, useMail } from "./mailbox";
+import { reviewDisabled, reviewLabel, runReview, type ReviewState } from "./review";
 import { DEFAULT_PANEL_WIDTH, DEFAULT_TAB, clampPanelWidth, effectiveTab, itemCounts, mailHint, panelLayout, panelMemory, panelTabs, toggleBadge, widthAfterDrag, type PanelTab } from "./panel";
 
 const SESSION_KEY = ["assistant", "session"];
@@ -72,6 +73,15 @@ export function AssistantScreen(props: PluginScreenProps) {
   const reset = useRpc(resetRpc);
   const queryClient = useQueryClient();
   const session = useQuery({ queryKey: SESSION_KEY, queryFn: () => ensure({}), retry: false });
+  const reviewTasks = useRpc(reviewTasksRpc);
+  const [review, setReview] = useState<ReviewState>({ phase: "idle" });
+  const reviewGate = reviewDisabled(!!session.data, review);
+  // The "Sent" / "Queued" feedback fades back to the label after a moment.
+  useEffect(() => {
+    if (review.phase !== "done" && review.phase !== "error") return;
+    const timer = setTimeout(() => setReview({ phase: "idle" }), 4000);
+    return () => clearTimeout(timer);
+  }, [review]);
   const restart = useMutation({
     mutationFn: () => reset({}),
     onSuccess: (next) => queryClient.setQueryData(SESSION_KEY, next),
@@ -155,6 +165,20 @@ export function AssistantScreen(props: PluginScreenProps) {
             </Text>
           </Pressable>
         ))}
+        {tab === "items" ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Review tasks"
+            accessibilityHint={reviewGate.hint ?? (review.phase === "error" ? review.message : undefined)}
+            accessibilityState={{ disabled: reviewGate.disabled }}
+            disabled={reviewGate.disabled}
+            onPress={() => void runReview(!!session.data, () => reviewTasks({}), setReview)}
+            style={[styles.button, { opacity: reviewGate.disabled ? 0.4 : 1 }, { cursor: reviewGate.disabled ? "not-allowed" : "pointer" } as object]}
+            {...({ title: reviewGate.hint ?? "Ask the Assistant to look over each current task and nudge the agents" } as object)}
+          >
+            <Text style={styles.buttonText}>{reviewLabel(review)}</Text>
+          </Pressable>
+        ) : null}
         {mailAvailable ? null : <Text style={{ color: theme.colors.foregroundMuted, fontSize: 12, alignSelf: "center" }}>Mailbox: {mailHint(mail.data?.availability ?? "ok")}</Text>}
       </View>
       <View style={{ flex: 1 }}>

@@ -5,6 +5,8 @@ import path from "node:path";
 export const DELIVERY_DEBOUNCE_MS = 5_000;
 /** While something is queued and the Assistant is busy, how often its status is checked again. */
 export const DELIVERY_POLL_MS = 10_000;
+/** What the Review tasks button says to the Assistant, as if the user had typed it. */
+export const REVIEW_PROMPT = "Look over each current task, check its status and nudge the agents if needed";
 export const WAKE_PROMPT = "New mail in the Assistant mailbox. Process the Assistant mailbox.";
 
 /** Ids of answered decisions the Assistant has not been told about yet; survives a restart. */
@@ -99,6 +101,7 @@ export interface DeliveryDeps {
 export class Delivery {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private mailPending = false;
+  private reviewPending = false;
   private sending = false;
   private stopped = false;
 
@@ -110,6 +113,12 @@ export class Delivery {
     this.schedule(this.deps.debounceMs ?? DELIVERY_DEBOUNCE_MS);
   }
 
+  /** The user pressed Review tasks: send REVIEW_PROMPT as its own message once the Assistant is idle (queued behind a running turn, never steering it). */
+  requestReview(): void {
+    this.reviewPending = true;
+    this.schedule(0);
+  }
+
   /** A decision was answered in the tab: queue it for delivery. */
   enqueueDecision(id: string): void {
     this.deps.queue.add(id);
@@ -118,7 +127,7 @@ export class Delivery {
 
   /** Something may have changed (turn ended, startup): deliver what is queued. */
   poke(): void {
-    if (this.mailPending || this.deps.queue.list().length) this.schedule(this.deps.debounceMs ?? DELIVERY_DEBOUNCE_MS);
+    if (this.mailPending || this.reviewPending || this.deps.queue.list().length) this.schedule(this.deps.debounceMs ?? DELIVERY_DEBOUNCE_MS);
   }
 
   stop(): void {
@@ -143,7 +152,19 @@ export class Delivery {
       if ((await this.deps.status()) !== "idle") {
         // Busy or unknown: never interrupt. Mail is picked up on the next mailbox read; answers are retried.
         this.mailPending = false;
-        if (this.deps.queue.list().length) this.schedule(this.deps.pollMs ?? DELIVERY_POLL_MS);
+        if (this.deps.queue.list().length || this.reviewPending) this.schedule(this.deps.pollMs ?? DELIVERY_POLL_MS);
+        return;
+      }
+      if (this.reviewPending) {
+        // Alone, so the Assistant reads exactly what the user asked; anything else waits for the next idle.
+        this.reviewPending = false;
+        try {
+          await this.deps.send(REVIEW_PROMPT);
+        } catch (error) {
+          console.error("assistant: could not send the task review", error);
+          this.reviewPending = true;
+        }
+        if (this.reviewPending || this.mailPending || this.deps.queue.list().length) this.schedule(this.deps.pollMs ?? DELIVERY_POLL_MS);
         return;
       }
       const ids = this.deps.queue.list();

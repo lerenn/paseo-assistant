@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
-import { decisionCancelRpc, decisionAnswerRpc, currentRpc, shimsRpc, uiGetRpc, uiSetRpc, decisionListRpc, ensureRpc, itemListRpc, mailListRpc, mailReadRpc, resetRpc } from "./shared/rpc";
+import { decisionCancelRpc, decisionAnswerRpc, currentRpc, shimsRpc, uiGetRpc, uiSetRpc, decisionListRpc, ensureRpc, itemListRpc, mailListRpc, mailReadRpc, resetRpc, reviewTasksRpc } from "./shared/rpc";
 import { DEFAULT_PROVIDER, assistantSettings, settingsSchema } from "./shared/settings";
 import { MailHttp } from "./server/http";
 import { DecisionStore, cancelNudge, decisionNudge } from "./server/decisions";
@@ -155,6 +155,14 @@ export default function contribute(server: PluginServerContext) {
     capture(ctx);
     await ready;
     return session.reset(ctx.paseo as unknown as AssistantPaseo);
+  });
+  server.handle(reviewTasksRpc, async (_input, ctx) => {
+    capture(ctx);
+    const assistantId = session.currentAgentId();
+    if (!assistantId || !paseo) return { result: "no-assistant" as const };
+    const status = statusOf(await paseo.agents.ref(assistantId).refresh());
+    delivery.requestReview();
+    return { result: status === "idle" ? ("sent" as const) : ("queued" as const) };
   });
   server.handle(mailListRpc, async () => {
     const state = await agentsMail.availability();

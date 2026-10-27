@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Delivery, PendingDeliveries, WAKE_PROMPT } from "./delivery";
+import { Delivery, PendingDeliveries, REVIEW_PROMPT, WAKE_PROMPT } from "./delivery";
 
 let dir: string;
 beforeEach(() => {
@@ -115,6 +115,39 @@ describe("Delivery", () => {
     second.delivery.poke();
     await tick(500);
     expect(second.send).toHaveBeenCalledWith("answer d1");
+  });
+});
+
+describe("Delivery.requestReview", () => {
+  it("sends the exact prompt at once to an idle Assistant, alone", async () => {
+    const { send, delivery } = setup({ current: "idle" });
+    expect(REVIEW_PROMPT).toBe("Look over each current task, check its status and nudge the agents if needed");
+    delivery.notifyMail();
+    delivery.requestReview();
+    await tick(10);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledWith(REVIEW_PROMPT);
+  });
+  it("queues behind a running turn (no steering) and sends once idle, once", async () => {
+    const state = { current: "running" as string | null };
+    const { send, delivery } = setup(state);
+    delivery.requestReview();
+    await tick(3500);
+    expect(send).not.toHaveBeenCalled();
+    state.current = "idle";
+    await tick(1500);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledWith(REVIEW_PROMPT);
+    await tick(5000);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+  it("retries when sending fails", async () => {
+    const { send, delivery } = setup({ current: "idle" });
+    send.mockRejectedValueOnce(new Error("down"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    delivery.requestReview();
+    await tick(1500);
+    expect(send).toHaveBeenCalledTimes(2);
   });
 });
 
