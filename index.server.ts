@@ -16,6 +16,8 @@ import { AssistantSession, StateFile, dataDir, type AssistantPaseo } from "./ser
 import { CAPABILITY_ENV, CapabilityStore } from "./server/tokens";
 import { mailTools } from "./server/tools";
 import { ReviewScheduler } from "./server/review";
+import { IdleMessage } from "./server/idle-message";
+import { heartbeatChangedPrompt } from "./server/prompt";
 import { NudgeLedger, agentInfos, nudgeCheck } from "./server/nudge";
 
 const DEFAULT_PORT = 47842;
@@ -28,7 +30,12 @@ export default function contribute(server: PluginServerContext) {
   const apply = (state: Awaited<ReturnType<typeof settings.read>>) => {
     latest = state.status === "ready" ? state.values : settingsSchema.parse({});
     reviews?.reschedule();
+    // A changed mailbox heartbeat interval is passed to the Assistant, which re-creates its heartbeat; the first read only records it.
+    if (syncedHeartbeat !== null && syncedHeartbeat !== latest.mailboxHeartbeatMinutes) heartbeatChange?.request(heartbeatChangedPrompt(latest.mailboxHeartbeatMinutes));
+    syncedHeartbeat = latest.mailboxHeartbeatMinutes;
   };
+  let syncedHeartbeat: number | null = null;
+  let heartbeatChange: IdleMessage | null = null;
   let reviews: ReviewScheduler | null = null;
   const ready = settings.read().then(apply);
   const unsubscribeSettings = settings.subscribe(apply);
@@ -55,6 +62,10 @@ export default function contribute(server: PluginServerContext) {
       if (!url) return null;
       return { url, token: tokens.assistantToken() ?? tokens.create({ role: "assistant" }) };
     },
+    undefined,
+    undefined,
+    undefined,
+    () => latest.mailboxHeartbeatMinutes,
   );
 
   /** Messages the Assistant; "steer" starts a turn on an idle agent. Callers check that it is idle first. Rejects when it cannot send. */
@@ -94,16 +105,18 @@ export default function contribute(server: PluginServerContext) {
   delivery.poke();
 
   /** The periodic task review: queued, never steered, one at a time; the interval is a setting (0 = off). */
+  const reviewStatus = async () => {
+    const assistantId = session.currentAgentId();
+    if (!assistantId || !paseo) return null;
+    return statusOf(await paseo.agents.ref(assistantId).refresh());
+  };
   reviews = new ReviewScheduler({
     minutes: () => latest.taskReviewMinutes,
-    status: async () => {
-      const assistantId = session.currentAgentId();
-      if (!assistantId || !paseo) return null;
-      return statusOf(await paseo.agents.ref(assistantId).refresh());
-    },
+    status: reviewStatus,
     send: nudge,
   });
   void ready.then(() => reviews?.start());
+  heartbeatChange = new IdleMessage({ status: reviewStatus, send: nudge });
   const nudges = new NudgeLedger(process.env.ASSISTANT_NUDGES ?? join(dataDir, "nudges.json"));
 
   const http = new MailHttp({
@@ -120,6 +133,7 @@ export default function contribute(server: PluginServerContext) {
         return nudgeCheck(agentId, { pendingInbox }, {
           agents: async () => agentInfos(listed.entries),
           ledger: nudges,
+          limits: () => ({ idleMs: latest.nudgeIdleMinutes * 60_000, windowMs: 60 * 60_000, maxPerWindow: latest.nudgeMaxPerHour, escalateAfter: latest.nudgeEscalateAfter }),
           pendingDecision: (agent) =>
             decisions.list().some((d) => isOpen(d) && [agent.id, agent.id.slice(0, 8), agent.title].some((k) => k && d.question.includes(k))),
           escalate: (agent, count) =>
@@ -281,6 +295,7 @@ export default function contribute(server: PluginServerContext) {
     removePrompt();
     unsubscribeSettings();
     reviews?.stop();
+    heartbeatChange?.stop();
     clearInterval(shimTimer);
     delivery.stop();
     void http.stop();
