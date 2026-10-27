@@ -55,6 +55,7 @@ describe("managing agents", () => {
       "never answer an agent's permission request",
       "asking the owning coordinator",
       "Log every action as a Current Tasks note",
+      'pass labels {"paseo.mail-alias": "<role>"}',
     ]) {
       expect(ASSISTANT_PROMPT, rule).toContain(rule);
     }
@@ -142,6 +143,12 @@ describe("agent management tools", () => {
     paseo.agents.list = async (o?: unknown) => (seen.push(o), original(o));
     await listAgents(paseo);
     expect(seen[0]).toEqual({ filter: { includeArchived: false, includeBackground: true } });
+  });
+
+  it("passes a role's mail alias label through to the agent it creates, without letting it override the system labels", async () => {
+    const { paseo, calls } = fakePaseo();
+    await createAgent(paseo, { workspaceId: "w", title: "PCC", prompt: "p", labels: { "paseo.mail-alias": "pcc" } });
+    expect(calls.agent[0].labels).toEqual({ "paseo.mail-alias": "pcc", "paseo.created-by": "assistant" });
   });
 
   it("lists only what the Assistant created unless asked for all", async () => {
