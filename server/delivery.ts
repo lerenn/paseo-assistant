@@ -5,8 +5,6 @@ import path from "node:path";
 export const DELIVERY_DEBOUNCE_MS = 5_000;
 /** While something is queued and the Assistant is busy, how often its status is checked again. */
 export const DELIVERY_POLL_MS = 10_000;
-/** What the Review tasks button says to the Assistant, as if the user had typed it. */
-export const REVIEW_PROMPT = "Look over each current task, check its status and nudge the agents if needed";
 export const WAKE_PROMPT = "New mail in the Assistant mailbox. Process the Assistant mailbox.";
 
 /** Ids of answered decisions the Assistant has not been told about yet; survives a restart. */
@@ -87,6 +85,8 @@ export interface DeliveryDeps {
   decisionText(id: string): string | null;
   /** Sends a message that starts a turn; only called once the Assistant was seen idle, twice. */
   send(text: string): Promise<void>;
+  /** The task review prompt (the open tasks, built when sent), as for the periodic review. */
+  reviewPrompt(): string;
   /** Called with the queued ids once their message was sent. */
   delivered?(ids: string[]): void;
   debounceMs?: number;
@@ -113,7 +113,7 @@ export class Delivery {
     this.schedule(this.deps.debounceMs ?? DELIVERY_DEBOUNCE_MS);
   }
 
-  /** The user pressed Review tasks: send REVIEW_PROMPT as its own message once the Assistant is idle (queued behind a running turn, never steering it). */
+  /** The user pressed Review tasks: send the review prompt as its own message once the Assistant is idle (queued behind a running turn, never steering it). */
   requestReview(): void {
     this.reviewPending = true;
     this.schedule(0);
@@ -159,7 +159,7 @@ export class Delivery {
         // Alone, so the Assistant reads exactly what the user asked; anything else waits for the next idle.
         this.reviewPending = false;
         try {
-          await this.deps.send(REVIEW_PROMPT);
+          await this.deps.send(this.deps.reviewPrompt());
         } catch (error) {
           console.error("assistant: could not send the task review", error);
           this.reviewPending = true;

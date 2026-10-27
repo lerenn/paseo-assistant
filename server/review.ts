@@ -1,5 +1,3 @@
-import { TASK_REVIEW_PROMPT } from "../shared/review";
-
 /** While a review waits for the Assistant to finish its turn, how often its status is checked. */
 export const REVIEW_POLL_MS = 10_000;
 
@@ -10,6 +8,8 @@ export interface ReviewDeps {
   status(): Promise<string | null>;
   /** Sends the review prompt as a message that starts a turn; only called when the Assistant was seen idle, twice. */
   send(text: string): Promise<void>;
+  /** The review prompt, built when it is sent so it lists the open tasks at that moment. */
+  prompt(): string;
   pollMs?: number;
 }
 
@@ -70,7 +70,7 @@ export class ReviewScheduler {
     try {
       // Re-check right before sending: if a turn started meanwhile, keep waiting instead of steering.
       if ((await this.deps.status()) === "idle" && (await this.deps.status()) === "idle") {
-        await this.deps.send(TASK_REVIEW_PROMPT);
+        await this.deps.send(this.deps.prompt());
         this.queued = false;
         return;
       }
