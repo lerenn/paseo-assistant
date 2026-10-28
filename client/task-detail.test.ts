@@ -13,7 +13,7 @@ describe("metaLine", () => {
     expect(metaLine(item({ blockedOn: "Louis", since, due: "2026-11-01" }))).toBe(`on Louis · since ${new Date(since).toLocaleString()} · due 2026-11-01`);
   });
   it("omits since once closed", () => {
-    expect(metaLine(item({ since: 2_000, due: "2026-11-01", closed: { at: 3_000 } }))).toBe("due 2026-11-01");
+    expect(metaLine(item({ since: 2_000, due: "2026-11-01", closed: { at: 3_000, note: null } }))).toBe("due 2026-11-01");
   });
 });
 
