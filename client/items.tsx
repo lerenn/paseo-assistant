@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Linking, Pressable, ScrollView, Text, View } from "react-native";
 import { isStale, type Item, type ItemOwner } from "../shared/item";
+import { groupTasks, type TaskGroup } from "./groups";
 import { itemListRpc } from "../shared/rpc";
 import { cardStyle } from "./card";
 import { CardHeader } from "./card-header";
@@ -35,6 +36,11 @@ function ItemRow({ theme, item, rich }: { theme: PluginTheme; item: Item; rich?:
       />
       <Text style={{ color: theme.colors.foreground, fontSize: 14, fontWeight: item.closed ? "400" : "600" }}>{item.title}</Text>
       {item.detail ? rich ? <RichText theme={theme} markdown={item.detail} /> : <Text style={{ color: theme.colors.foregroundMuted, fontSize: 13 }}>{item.detail}</Text> : null}
+      {item.blockedOn || item.due || (item.since && !item.closed) ? (
+        <Text style={{ color: theme.colors.foregroundMuted, fontSize: 12 }}>
+          {[item.blockedOn ? `on ${item.blockedOn}` : null, item.since && !item.closed ? `since ${new Date(item.since).toLocaleString()}` : null, item.due ? `due ${item.due}` : null].filter(Boolean).join(" · ")}
+        </Text>
+      ) : null}
       <View style={{ flexDirection: "row", gap: 12 }}>
         {item.link ? (
           <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(item.link!)}>
@@ -49,17 +55,46 @@ function ItemRow({ theme, item, rich }: { theme: PluginTheme; item: Item; rich?:
   );
 }
 
-/** The open items of one owner: `agent` for the Current Tasks tab, `human` for Your Actions (steps rendered as markdown). */
+function GroupSection({ theme, group, color }: { theme: PluginTheme; group: TaskGroup; color: string }) {
+  const [collapsed, setCollapsed] = useState(group.collapsed);
+  return (
+    <View>
+      <Pressable accessibilityRole="button" accessibilityState={{ expanded: !collapsed }} onPress={() => setCollapsed((v) => !v)} style={{ paddingHorizontal: 16, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: color }} />
+        <Text style={{ color, fontSize: 13, fontWeight: "600" }}>
+          {collapsed ? "▸" : "▾"} {group.label} ({group.items.length})
+        </Text>
+      </Pressable>
+      {collapsed ? null : group.items.map((i) => <ItemRow key={i.id} theme={theme} item={i} />)}
+    </View>
+  );
+}
+
+/** The agent-owned tasks, in collapsible coloured groups by status (the Tasks tab). */
+function TasksView({ theme, items }: { theme: PluginTheme; items: readonly Item[] }) {
+  const groups = groupTasks(items, Date.now());
+  return (
+    <ScrollView>
+      {groups.length === 0 ? <Text style={{ color: theme.colors.foregroundMuted, padding: 16 }}>Nothing in progress. The Assistant lists here what it is working on and what you are waiting on.</Text> : null}
+      {groups.map((g) => (
+        <GroupSection key={g.status} theme={theme} group={g} color={g.status === "blocked" ? theme.colors.statusDanger : g.status === "done" ? theme.colors.statusSuccess : g.color} />
+      ))}
+    </ScrollView>
+  );
+}
+
+/** Your Actions (`human`: open items with their steps rendered as markdown) or Tasks (`agent`: grouped by status). */
 export function ItemsView({ theme, items, owner = "agent" }: { theme: PluginTheme; items: readonly Item[]; owner?: ItemOwner }) {
   const [showClosed, setShowClosed] = useState(false);
+  if (owner === "agent") return <TasksView theme={theme} items={items} />;
   const mine = items.filter((i) => i.owner === owner);
   const open = mine.filter((i) => !i.closed);
   const closed = mine.filter((i) => i.closed);
   return (
     <ScrollView>
-      {open.length === 0 ? <Text style={{ color: theme.colors.foregroundMuted, padding: 16 }}>{owner === "human" ? "Nothing for you to do. The Assistant lists here what you have to do, with the steps." : "Nothing in progress. The Assistant lists here what it is working on and what you are waiting on."}</Text> : null}
+      {open.length === 0 ? <Text style={{ color: theme.colors.foregroundMuted, padding: 16 }}>Nothing for you to do. The Assistant lists here what you have to do, with the steps.</Text> : null}
       {open.map((i) => (
-        <ItemRow key={i.id} theme={theme} item={i} rich={owner === "human"} />
+        <ItemRow key={i.id} theme={theme} item={i} rich />
       ))}
       {closed.length ? (
         <View>
@@ -68,7 +103,7 @@ export function ItemsView({ theme, items, owner = "agent" }: { theme: PluginThem
               {showClosed ? "▾" : "▸"} Closed ({closed.length})
             </Text>
           </Pressable>
-          {showClosed ? closed.map((i) => <ItemRow key={i.id} theme={theme} item={i} rich={owner === "human"} />) : null}
+          {showClosed ? closed.map((i) => <ItemRow key={i.id} theme={theme} item={i} rich />) : null}
         </View>
       ) : null}
     </ScrollView>

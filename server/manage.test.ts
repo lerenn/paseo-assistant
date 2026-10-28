@@ -55,7 +55,7 @@ describe("managing agents", () => {
       "GitHub review requests and re-requests are allowed to get an approval",
       "never answer an agent's permission request",
       "asking the owning coordinator",
-      "Log every action as a Current Tasks note",
+      "Log every action as a Tasks note",
       'pass labels {"paseo.mail-alias": "<role>"}',
     ]) {
       expect(ASSISTANT_PROMPT, rule).toContain(rule);

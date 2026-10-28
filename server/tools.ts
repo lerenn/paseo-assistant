@@ -2,7 +2,7 @@ import { z } from "zod";
 import { mailKindSchema } from "../shared/mail";
 import { DECISION_STATUSES, MAX_OPTIONS, MIN_OPTIONS, decisionStatus, findDecision } from "../shared/decision";
 import { shortId } from "../shared/id";
-import { isStale } from "../shared/item";
+import { ITEM_STATUSES, isStale, statusOf, type Item, type ItemStatus } from "../shared/item";
 import type { DecisionStore } from "./decisions";
 import type { ItemStore } from "./items";
 import { ManageError, createAgent, createWorkspace, listAgents, listProjects, type ManagePaseo } from "./manage";
@@ -169,44 +169,70 @@ export const mailTools: ToolDef[] = [
   {
     name: "assistant_item_add",
     description:
-      "Track an open item. owner \"agent\" (default): something the human is waiting on but does not have to decide, for example \"waiting for the cluster rework PR 3\" or \"pin PR pending restart\". It shows in the Current Tasks tab. owner \"human\": something the human must DO (merge a PR, run a command, enter a Secret, sign in): it shows in the Your Actions tab, where detail is rendered as markdown with copyable code blocks, so write numbered steps and put commands in fenced code blocks. For a real choice use assistant_decision_add instead. Title is one line; detail (up to 8000 characters) and an http(s) link are optional.",
+      "Track an open item. owner \"agent\" (default): a task of yours or something the human is waiting on but does not have to decide, for example \"waiting for the cluster rework PR 3\" or \"pin PR pending restart\". It shows in the Tasks tab, grouped by status: current (being worked on, the default), waiting (waiting on something external), blocked (cannot proceed: say what in blockedOn), future (planned, not started), recurring (repeats), done (use assistant_item_close). blockedOn is free text for what a blocked or waiting task is stuck on; due is free text, a date or a trigger such as \"when the idle gate opens\"; since is an ISO timestamp, set automatically when the status is blocked or waiting. owner \"human\": something the human must DO (merge a PR, run a command, enter a Secret, sign in): it shows in the Your Actions tab, where detail is rendered as markdown with copyable code blocks, so write numbered steps and put commands in fenced code blocks (status does not apply there). For a real choice use assistant_decision_add instead. Title is one line; detail (up to 8000 characters) and an http(s) link are optional.",
     roles: ["assistant"],
-    input: z.object({ title: z.string().min(1).max(200), detail: z.string().max(8000).optional(), link: z.string().max(500).optional(), owner: z.enum(["human", "agent"]).default("agent").describe("human: something the user must DO (merge, run a command, enter a Secret, sign in); agent: a wait on an agent or a process.") }),
-    async run(input: { title: string; detail?: string; link?: string; owner: "human" | "agent" }, ctx) {
+    input: z.object({
+      title: z.string().min(1).max(200),
+      detail: z.string().max(8000).optional(),
+      link: z.string().max(500).optional(),
+      owner: z.enum(["human", "agent"]).default("agent").describe("human: something the user must DO (merge, run a command, enter a Secret, sign in); agent: a wait on an agent or a process."),
+      status: z.enum(ITEM_STATUSES.filter((s) => s !== "done") as [ItemStatus, ...ItemStatus[]]).optional().describe("current (default) | waiting | blocked | future | recurring. Close an item with assistant_item_close."),
+      blockedOn: z.string().max(500).optional().describe("What a blocked or waiting task is stuck on."),
+      due: z.string().max(200).optional().describe("A date or a trigger, free text."),
+      since: z.string().max(40).optional().describe("ISO timestamp the task became blocked or waiting; set automatically when omitted."),
+    }),
+    async run(input: { title: string; detail?: string; link?: string; owner: "human" | "agent"; status?: ItemStatus; blockedOn?: string; due?: string; since?: string }, ctx) {
       const item = ctx.items.add(input);
-      return { id: item.id, shortId: shortId(item.id), owner: item.owner };
+      return { id: item.id, shortId: shortId(item.id), owner: item.owner, status: item.status };
     },
   },
   {
     name: "assistant_item_update",
-    description: "Change the title, detail or link of an open item (an empty detail or link clears it). Fails on an unknown or closed id.",
+    description:
+      "Change the title, detail, link, owner, status, blockedOn, due or since of an open item (an empty detail, link, blockedOn, due or since clears it). Status is current | waiting | blocked | future | recurring | done (done closes the item). Moving a task to blocked or waiting sets since to now unless you pass it; moving it out of both clears since. Fails on an unknown or closed id.",
     roles: ["assistant"],
-    input: z.object({ id: z.string().min(1).describe("Short (8 character) or full item id, or a unique prefix of 4+ characters."), title: z.string().min(1).max(200).optional(), detail: z.string().max(8000).optional(), link: z.string().max(500).optional(), owner: z.enum(["human", "agent"]).optional() }),
-    async run(input: { id: string; title?: string; detail?: string; link?: string; owner?: "human" | "agent" }, ctx) {
+    input: z.object({
+      id: z.string().min(1).describe("Short (8 character) or full item id, or a unique prefix of 4+ characters."),
+      title: z.string().min(1).max(200).optional(),
+      detail: z.string().max(8000).optional(),
+      link: z.string().max(500).optional(),
+      owner: z.enum(["human", "agent"]).optional(),
+      status: z.enum(ITEM_STATUSES).optional(),
+      blockedOn: z.string().max(500).optional(),
+      due: z.string().max(200).optional(),
+      since: z.string().max(40).optional().describe("ISO timestamp, or an empty string to clear."),
+    }),
+    async run(input: { id: string; title?: string; detail?: string; link?: string; owner?: "human" | "agent"; status?: ItemStatus; blockedOn?: string; due?: string; since?: string }, ctx) {
       const { id, ...changes } = input;
       const item = ctx.items.update(id, changes);
-      return { id: item.id, title: item.title, owner: item.owner };
+      return { id: item.id, title: item.title, owner: item.owner, status: statusOf(item) };
     },
   },
   {
     name: "assistant_item_list",
     description:
-      "List items: id, shortId (the 8 characters on the card), title, owner (human = Your Actions, agent = Current Tasks), status (open or closed), detail, link, createdAt and updatedAt, and stale: true for an open item not updated for 24 hours. Filter by status (open by default, closed, all) and by owner. Use it on each mailbox heartbeat to review what is still true.",
+      "List items: id, shortId (the 8 characters on the card), title, owner (human = Your Actions, agent = Tasks), status (current, waiting, blocked, future, recurring or done), open (false once closed), blockedOn, since, due, detail, link, createdAt and updatedAt, and stale: true for an open item not updated for 24 hours. The filter status is open (every item not closed, the default), closed or all, or one item status (current, waiting, blocked, future, recurring, done; done = closed). Filter by owner too. Use it on each mailbox heartbeat to review what is still true.",
     roles: ["assistant"],
-    input: z.object({ status: z.enum(["open", "closed", "all"]).default("open"), owner: z.enum(["human", "agent"]).optional() }),
-    async run(input: { status: "open" | "closed" | "all"; owner?: "human" | "agent" }, ctx) {
+    input: z.object({ status: z.enum(["open", "closed", "all", ...ITEM_STATUSES]).default("open"), owner: z.enum(["human", "agent"]).optional() }),
+    async run(input: { status: "open" | "closed" | "all" | ItemStatus; owner?: "human" | "agent" }, ctx) {
       const iso = (t: number | null | undefined) => (t == null ? null : new Date(t).toISOString());
       const now = Date.now();
+      const wanted = (i: Item) =>
+        input.status === "all" || (input.status === "open" ? !i.closed : input.status === "closed" ? !!i.closed : statusOf(i) === input.status);
       return ctx.items
         .list()
-        .filter((i) => (!input.owner || i.owner === input.owner) && (input.status === "all" || (input.status === "open") === !i.closed))
+        .filter((i) => (!input.owner || i.owner === input.owner) && wanted(i))
         .map((i) => ({
           id: i.id,
           shortId: shortId(i.id),
           title: i.title,
           owner: i.owner,
-          status: i.closed ? "closed" : "open",
+          status: statusOf(i),
+          open: !i.closed,
           stale: isStale(i, now),
+          blockedOn: i.blockedOn,
+          since: iso(i.since),
+          due: i.due,
           detail: i.detail,
           link: i.link,
           createdAt: iso(i.addedAt),
@@ -218,12 +244,12 @@ export const mailTools: ToolDef[] = [
   },
   {
     name: "assistant_item_close",
-    description: "Close an open item when what the human was waiting for happened. An optional note says how it ended. Fails on an unknown or already closed id.",
+    description: "Close an open item when what the human was waiting for happened: its status becomes done. An optional note says how it ended. Fails on an unknown or already closed id.",
     roles: ["assistant"],
     input: z.object({ id: z.string().min(1).describe("Short (8 character) or full item id, or a unique prefix of 4+ characters."), note: z.string().max(1000).optional() }),
     async run(input: { id: string; note?: string }, ctx) {
       const item = ctx.items.close(input.id, input.note);
-      return { id: item.id, closed: true };
+      return { id: item.id, closed: true, status: "done" };
     },
   },
   {

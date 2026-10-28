@@ -71,13 +71,33 @@ describe("items by short id", () => {
     c.items.close(h.id);
     const open = text(await call(c, "assistant_item_list", {}));
     expect(open.map((i: any) => i.title)).toEqual(["wait"]);
-    expect(open[0]).toMatchObject({ id: a.id, shortId: shortId(a.id), owner: "agent", status: "open", stale: false });
+    expect(open[0]).toMatchObject({ id: a.id, shortId: shortId(a.id), owner: "agent", status: "current", open: true, stale: false, blockedOn: null, since: null, due: null });
     expect(open[0].createdAt).toBeTruthy();
     expect(open[0].updatedAt).toBeTruthy();
-    expect(text(await call(c, "assistant_item_list", { status: "closed" })).map((i: any) => [i.title, i.status])).toEqual([["do", "closed"]]);
+    expect(text(await call(c, "assistant_item_list", { status: "closed" })).map((i: any) => [i.title, i.status, i.open])).toEqual([["do", "done", false]]);
     expect(text(await call(c, "assistant_item_list", { status: "all" }))).toHaveLength(2);
     expect(text(await call(c, "assistant_item_list", { status: "all", owner: "human" })).map((i: any) => i.title)).toEqual(["do"]);
     expect((await call({ ...c, capability: { role: "agent", agentId: "a1" } }, "assistant_item_list", {})).error.code).toBe(-32602);
+  });
+
+  it("takes status, blockedOn and due on add and update, lists them, and filters by item status", async () => {
+    const c = ctx();
+    const added = text(await call(c, "assistant_item_add", { title: "pin", status: "blocked", blockedOn: "idle gate", due: "when the idle gate opens" }));
+    expect(added.status).toBe("blocked");
+    c.items.add({ title: "later", status: "future" });
+    const blocked = text(await call(c, "assistant_item_list", { status: "blocked" }));
+    expect(blocked.map((i: any) => [i.title, i.blockedOn, i.due, typeof i.since])).toEqual([["pin", "idle gate", "when the idle gate opens", "string"]]);
+    expect(text(await call(c, "assistant_item_list", {})).map((i: any) => i.title)).toEqual(["pin", "later"]);
+    expect(text(await call(c, "assistant_item_update", { id: added.shortId, status: "waiting", blockedOn: "" })).status).toBe("waiting");
+    expect(text(await call(c, "assistant_item_list", { status: "waiting" }))[0].blockedOn).toBeNull();
+    expect((await call(c, "assistant_item_add", { title: "x", status: "done" })).result.isError).toBe(true);
+    expect(text(await call(c, "assistant_item_close", { id: added.shortId })).status).toBe("done");
+    expect(text(await call(c, "assistant_item_list", { status: "done" })).map((i: any) => i.title)).toEqual(["pin"]);
+  });
+
+  it("tells agents the statuses in the tool descriptions", async () => {
+    const add = mailTools.find((t) => t.name === "assistant_item_add")!;
+    for (const w of ["current", "waiting", "blocked", "future", "recurring", "blockedOn", "due"]) expect(add.description).toContain(w);
   });
 });
 
@@ -109,4 +129,5 @@ describe("the heartbeat review rule", () => {
     }
     expect(ASSISTANT_PROMPT).toContain('"Process the Assistant mailbox"');
   });
+
 });
