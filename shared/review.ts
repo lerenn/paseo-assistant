@@ -3,7 +3,7 @@ import type { Item } from "./item";
 
 /**
  * What the Assistant is told to start a task review: the 30-minute heartbeat and the "Review tasks" button send the
- * same text. It lists ALL open tasks (the ones the Current Tasks and Your Actions tabs render), human items first,
+ * same text. It lists ALL open tasks (the ones the Tasks and Your Actions tabs render), human items first,
  * each as `short id: title`, then the rules of the reply.
  */
 export function buildTaskReviewPrompt(items: readonly Pick<Item, "id" | "title" | "owner" | "closed">[]): string {

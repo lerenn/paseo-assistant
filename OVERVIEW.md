@@ -1,4 +1,4 @@
-Assistant is a first mate for the other agents on your Paseo daemon. It is one long-lived conversation that watches your agents, passes on their questions and summarises what needs you. A sidebar entry (a spinner that turns continuously while the Assistant is working, the sparkles icon when it is idle) opens its screen, with the chat always shown and a right-hand panel (toggle at the top right) with the tabs Current Tasks (the default, always), Your Decisions, Your Actions and Mailbox, each with a count.
+Assistant is a first mate for the other agents on your Paseo daemon. It is one long-lived conversation that watches your agents, passes on their questions and summarises what needs you. A sidebar entry (a spinner that turns continuously while the Assistant is working, the sparkles icon when it is idle) opens its screen, with the chat always shown and a right-hand panel (toggle at the top right) with the tabs Tasks (the default, always), Your Decisions, Your Actions and Mailbox, each with a count.
 
 ## How it works
 
@@ -28,9 +28,20 @@ Without Agents Mail the Mailbox tab is disabled with the hint "Agents Mail not i
 
 When something needs your choice, the Assistant queues it with `assistant_decision_add(question, options, recommended)` (2 to 4 options, the recommended one shown first and marked) instead of waiting on you in chat. The Your Decisions tab shows a count badge and lists the open ones; pick an option or choose "Other…" to type your own answer (Enter sends it, Shift+Enter adds a line). The answer is queued (on disk) and delivered to the Assistant as one message, together with any new-mail wake, once it is idle: a running turn is never steered or interrupted. The message carries the decision id, question and answer, so it can act. Answered decisions stay under a collapsed "Answered" section. A **×** in the corner of each open card cancels it: the card turns into "Cancelling… Undo" for 5 seconds and only then is the Assistant told ("Decision cancelled by the user (id …): <question>", through the same idle-only queue as answers, so it can tell any waiting agent not to wait). Cancelled decisions move under "Answered" marked "Cancelled", and `assistant_decision_list` reports them with status `cancelled`. Reloading the page inside the 5 seconds drops the cancel.
 
-## Current Tasks (open items)
+## Tasks (open items)
 
-For things you are waiting on but do not have to decide ("waiting for the cluster rework PR 3", "pin PR pending restart"), the Assistant keeps a list with `assistant_item_add(title, detail?, link?)`, `assistant_item_update(id, ...)` and `assistant_item_close(id, note?)`. The Current Tasks tab shows the open ones with a count (the sidebar badge stays decisions-only); closed items stay under a collapsed "Closed" section. Decisions are for real choices only.
+For things you are waiting on but do not have to decide ("waiting for the cluster rework PR 3", "pin PR pending restart") and for its own work, the Assistant keeps a list with `assistant_item_add(title, detail?, link?, status?, blockedOn?, due?)`, `assistant_item_update(id, ...)` and `assistant_item_close(id, note?)`. The Tasks tab (called Current Tasks before) shows the `agent` items with a count (the sidebar badge stays decisions-only), in collapsible coloured groups by status. Decisions are for real choices only.
+
+| Status | Group colour | Meaning |
+| --- | --- | --- |
+| `current` | blue | being worked on; the default, and what items saved before statuses are |
+| `waiting` | grey | waiting on something external |
+| `blocked` | red | cannot proceed |
+| `future` | purple | planned, not started |
+| `recurring` | teal | repeats |
+| `done` | green | closed; its group is collapsed and holds the items closed in the last 24 hours |
+
+Each task also has `blockedOn` (what a blocked or waiting task is stuck on), `since` (an ISO timestamp, set to now when the status changes to `blocked` or `waiting` unless given, cleared when it leaves both; editable) and `due` (free text: a date, or a trigger like "when the idle gate opens"). `assistant_item_close` sets `done`, and so does `assistant_item_update` with status `done`. `status` is stored in `items.json` with the other fields; items saved without it load as `current` (closed ones as `done`), so no migration step is needed and nothing is rewritten until the next change.
 
 `assistant_decision_list(status?, since?, until?)` shows the Assistant its decisions with a status (pending, answered, delivered, closed), the recommended option, the answer and its source, and timestamps; it checks it before queueing a new one.
 
@@ -60,12 +71,12 @@ New Assistant sessions (the New session button, auto-ensure and `assistant_sessi
 
 ## Your Actions
 
-Open items have an `owner`: `agent` (the default, also for items saved before owners existed) for waits, `human` for what you must DO: merge a PR, run a command, enter a Secret, sign in. `assistant_item_add` and `assistant_item_update` take `owner`, and the tools show it. The **Your Actions** tab lists the open `human` items with a count: the title and the detail, a markdown text of steps (up to 8000 characters) rendered with the host's markdown renderer and each fenced code block as a block with a Copy button. The **Current Tasks** tab keeps the `agent` items only. The Assistant adds an item with owner `human` for anything you must do, closes it when it is done, and answers "what do I need to do?" from that list. The sidebar badge stays decisions-only.
+Open items have an `owner`: `agent` (the default, also for items saved before owners existed) for waits, `human` for what you must DO: merge a PR, run a command, enter a Secret, sign in. `assistant_item_add` and `assistant_item_update` take `owner`, and the tools show it. The **Your Actions** tab lists the open `human` items with a count: the title and the detail, a markdown text of steps (up to 8000 characters) rendered with the host's markdown renderer and each fenced code block as a block with a Copy button. The **Tasks** tab keeps the `agent` items only; `status` does not apply to `human` items. The Assistant adds an item with owner `human` for anything you must do, closes it when it is done, and answers "what do I need to do?" from that list. The sidebar badge stays decisions-only.
 
 ## Item ids, listing, staleness and the heartbeat review
 
-- Cards in **Current Tasks** and **Your Actions** have the same copyable 8 character id chip on the header row as decision cards (one shared `CardHeader`; the right side shows "closed" or a "stale?" badge). `assistant_item_update` and `assistant_item_close` accept the short id or a unique prefix of 4+ characters.
-- `assistant_item_list(status?, owner?)` returns id, shortId, title, owner, status, stale, detail, link, createdAt, updatedAt (and closedAt/note for closed ones); open by default.
+- Cards in **Tasks** and **Your Actions** have the same copyable 8 character id chip on the header row as decision cards (one shared `CardHeader`; the right side shows "closed" or a "stale?" badge). `assistant_item_update` and `assistant_item_close` accept the short id or a unique prefix of 4+ characters.
+- `assistant_item_list(status?, owner?)` returns id, shortId, title, owner, status (`current`..`done`), open, stale, blockedOn, since, due, detail, link, createdAt, updatedAt (and closedAt/note for closed ones). Its `status` filter is `open` (every item not closed, the default), `closed` or `all`, or one item status; `done` means closed. The `status` field of the result used to be `open` or `closed`: read `open` for that.
 - An open item with no update for 24 hours shows a small **stale?** badge; any update to it resets it.
 - On each 15-minute mailbox heartbeat the Assistant also reviews the open items after the mailbox: it lists them, checks each against the agent's status, the PR or run it links to and the mail, and closes or updates stale ones. The heartbeat's own text ("Process the Assistant mailbox") does not change; the system prompt makes the review part of processing it, so the existing heartbeat keeps working.
 

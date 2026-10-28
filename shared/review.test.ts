@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Item } from "./item";
 import { buildTaskReviewPrompt } from "./review";
 
-const item = (id: string, title: string, owner: Item["owner"], closed: Item["closed"] = null): Item => ({ id, title, owner, detail: null, link: null, addedAt: 0, updatedAt: 0, closed });
+const item = (id: string, title: string, owner: Item["owner"], closed: Item["closed"] = null): Item => ({ id, title, owner, detail: null, link: null, addedAt: 0, updatedAt: 0, closed, status: "current", blockedOn: null, since: null, due: null });
 
 describe("buildTaskReviewPrompt", () => {
   it("lists every open task, human items first, then agent items in order", () => {

@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AgentsMailClient } from "./agentsmail";
 import { DecisionStore } from "./decisions";
+import { statusOf } from "../shared/item";
 import { ItemStore } from "./items";
 import { McpServer } from "./mcp";
 import { mailTools, toolNames, type ToolContext } from "./tools";
@@ -128,5 +129,35 @@ describe("item owner (Your actions)", () => {
     for (const text of ['owner "human"', "merge a PR, run a command, enter a Secret, sign in", "fenced code block", "Close it with assistant_item_close", "what do I need to do?"]) {
       expect(ASSISTANT_PROMPT, text).toContain(text);
     }
+  });
+
+  it("sets since on entering blocked or waiting, keeps an explicit one, clears it on leaving, and done closes", () => {
+    let t = 1000;
+    const store = new ItemStore(path.join(dir, "i.json"), () => t);
+    const item = store.add({ title: "t" });
+    expect(item).toMatchObject({ status: "current", since: null, blockedOn: null, due: null });
+    t = 2000;
+    expect(store.update(item.id, { status: "blocked", blockedOn: "the gate", due: "when it opens" })).toMatchObject({ status: "blocked", since: 2000, blockedOn: "the gate", due: "when it opens" });
+    t = 3000;
+    expect(store.update(item.id, { status: "waiting" }).since).toBe(3000);
+    expect(store.update(item.id, { since: "2026-10-27T10:00:00Z" }).since).toBe(Date.parse("2026-10-27T10:00:00Z"));
+    expect(() => store.update(item.id, { since: "yesterday" })).toThrow(/ISO/);
+    expect(store.update(item.id, { status: "future", blockedOn: "", due: "" })).toMatchObject({ since: null, blockedOn: null, due: null });
+    expect(store.add({ title: "w", status: "waiting" }).since).toBe(3000);
+    const done = store.update(item.id, { status: "done" });
+    expect(done.closed).not.toBeNull();
+    expect(done.status).toBe("done");
+    expect(() => store.add({ title: "x", status: "done" })).toThrow(/close/);
+  });
+
+  it("loads items saved before statuses as current (closed ones as done) without losing fields", () => {
+    const file = path.join(dir, "old.json");
+    const old = { id: "a".repeat(8), title: "old", owner: "agent", detail: "d", link: null, addedAt: 1, updatedAt: 2, closed: null };
+    const oldClosed = { ...old, id: "b".repeat(8), title: "old closed", closed: { at: 5, note: "ok" } };
+    writeFileSync(file, JSON.stringify([old, oldClosed]));
+    const items = new ItemStore(file).list();
+    expect(items[0]).toMatchObject({ title: "old", detail: "d", status: "current", blockedOn: null, since: null, due: null });
+    expect(statusOf(items[1])).toBe("done");
+    expect(items[1].closed).toEqual({ at: 5, note: "ok" });
   });
 });
