@@ -124,6 +124,8 @@ describe("stale items (24 h without an update)", () => {
 describe("the heartbeat review rule", () => {
   it("rides on the existing heartbeat text, and says what to check and do", () => {
     expect(ASSISTANT_PROMPT).toContain("## Review on every heartbeat");
+    expect(ASSISTANT_PROMPT).toContain("Coherence pass across tabs");
+    expect(ASSISTANT_PROMPT).toMatch(/every Your Actions item must be actionable now/);
     for (const text of ["assistant_item_list", "list_agents, get_agent_status", "the PR or run it links to", "assistant_item_close", "assistant_item_update", "stale?", "stays as it is"]) {
       expect(ASSISTANT_PROMPT, text).toContain(text);
     }
