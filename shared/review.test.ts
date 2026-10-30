@@ -24,9 +24,13 @@ describe("buildTaskReviewPrompt", () => {
   it("states the reply rules", () => {
     const prompt = buildTaskReviewPrompt([]);
     expect(prompt).toContain("Look over each current task");
-    expect(prompt).toContain("one line per task");
     expect(prompt).toContain("Do not skip or merge tasks");
+    expect(prompt).toContain("need the human or changed since the last review");
+    expect(prompt).toContain('exactly one line: "nothing new"');
+    expect(prompt).not.toContain("one line per task");
     expect(prompt).toContain("assistant_nudge_check");
-    expect(prompt).toContain("did not check and why");
+  });
+  it("still tells the Assistant to check every task", () => {
+    expect(buildTaskReviewPrompt([item("aaaaaaaa1111", "a", "agent")])).toContain("Check every open task above");
   });
 });

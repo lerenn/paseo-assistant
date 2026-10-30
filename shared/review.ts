@@ -15,7 +15,7 @@ export function buildTaskReviewPrompt(items: readonly Pick<Item, "id" | "title" 
   return [
     "Look over each current task, check its status and nudge the agents if needed.",
     list,
-    "Reply with one line per task: what you checked, its status, the next step. Do not skip or merge tasks. Nudge an agent only through assistant_nudge_check (nudge with send_agent_prompt only when it says allowed). End with the tasks you did not check and why (none if all were checked).",
+    "Check every open task above: its status, and the agent or run it waits on. Do not skip or merge tasks. Nudge an agent only through assistant_nudge_check (nudge with send_agent_prompt only when it says allowed). In your reply, list only the tasks that need the human or changed since the last review, one line each (what you saw, the next step). If no task qualifies, reply with exactly one line: \"nothing new\".",
   ].join("\n\n");
 }
 
