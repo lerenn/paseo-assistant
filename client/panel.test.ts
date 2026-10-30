@@ -1,25 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_TAB, MAIL_HINT, effectiveTab, mailHint, panelLayout, panelTabs, toggleBadge } from "./panel";
+import { DEFAULT_TAB, countBadge, panelLayout, panelTabs, toggleBadge } from "./panel";
 
 describe("panelTabs", () => {
-  it("lists Tasks, Your Decisions, Your Actions and Mailbox, in that order, with their counts, empty at zero", () => {
-    expect(panelTabs({ unreadMail: 0, openDecisions: 0, yourActions: 0, openItems: 0 })).toEqual([
-      { id: "items", label: "Tasks", badge: "", disabled: false, hint: null },
-      { id: "decisions", label: "Your Decisions", badge: "", disabled: false, hint: null },
-      { id: "actions", label: "Your Actions", badge: "", disabled: false, hint: null },
-      { id: "mailbox", label: "Mailbox", badge: "", disabled: false, hint: null },
+  it("lists Tasks, Your Decisions, and Your Actions, in that order, with their counts, empty at zero", () => {
+    expect(panelTabs({ openDecisions: 0, yourActions: 0, openItems: 0 })).toEqual([
+      { id: "items", label: "Tasks", badge: "" },
+      { id: "decisions", label: "Your Decisions", badge: "" },
+      { id: "actions", label: "Your Actions", badge: "" },
     ]);
-    expect(panelTabs({ unreadMail: 3, openDecisions: 2, yourActions: 4, openItems: 120 }).map((t) => t.badge)).toEqual(["99+", "2", "4", "3"]);
+    expect(panelTabs({ openDecisions: 2, yourActions: 4, openItems: 120 }).map((t) => t.badge)).toEqual(["99+", "2", "4"]);
   });
   it("has no Chat tab: the chat is always shown", () => {
-    expect(panelTabs({ unreadMail: 0, openDecisions: 0, yourActions: 0, openItems: 0 }).map((t) => t.id)).not.toContain("chat");
+    expect(panelTabs({ openDecisions: 0, yourActions: 0, openItems: 0 }).map((t) => t.id)).not.toContain("chat");
   });
 });
 
 describe("toggleBadge", () => {
   it("shows the open decisions only", () => {
-    expect(toggleBadge({ unreadMail: 9, openDecisions: 0, yourActions: 9, openItems: 9 })).toBe("");
-    expect(toggleBadge({ unreadMail: 9, openDecisions: 4, yourActions: 9, openItems: 9 })).toBe("4");
+    expect(toggleBadge({ openDecisions: 0, yourActions: 9, openItems: 9 })).toBe("");
+    expect(toggleBadge({ openDecisions: 4, yourActions: 9, openItems: 9 })).toBe("4");
   });
 });
 
@@ -32,28 +31,11 @@ describe("panelLayout", () => {
   });
 });
 
-describe("Mailbox tab without Agents Mail", () => {
-  const counts = { unreadMail: 5, openDecisions: 2, yourActions: 3, openItems: 1 };
-  it("is disabled with the hint and no count, while the other tabs work", () => {
-    const tabs = panelTabs(counts, false);
-    expect(tabs[3]).toEqual({ id: "mailbox", label: "Mailbox", badge: "", disabled: true, hint: MAIL_HINT });
-    expect(MAIL_HINT).toBe("Agents Mail not installed");
-    expect(tabs.slice(0, 3).every((t) => !t.disabled && t.hint === null)).toBe(true);
-    expect(tabs.slice(0, 3).map((t) => t.badge)).toEqual(["1", "2", "3"]);
-  });
-  it("falls back to Tasks, the default, when the wanted tab is the disabled Mailbox", () => {
-    expect(effectiveTab("mailbox", false)).toBe("items");
-    expect(effectiveTab("mailbox", true)).toBe("mailbox");
-    expect(effectiveTab("items", false)).toBe("items");
-  });
-});
-
-describe("mailHint", () => {
-  it("names why the tab is disabled", () => {
-    expect(mailHint("ok")).toBeNull();
-    expect(mailHint("not-installed")).toBe("Agents Mail not installed");
-    expect(mailHint("unreachable")).toBe("Agents Mail not answering");
-    expect(mailHint("outdated")).toBe("Agents Mail needs an update");
+describe("countBadge", () => {
+  it("is empty at zero and capped at 99+", () => {
+    expect(countBadge(0)).toBe("");
+    expect(countBadge(7)).toBe("7");
+    expect(countBadge(100)).toBe("99+");
   });
 });
 
@@ -104,10 +86,8 @@ describe("itemCounts (Your Actions and Tasks)", () => {
 });
 
 describe("default tab", () => {
-  it("is always Tasks, and nothing in the tab list or the fallback switches away from it by itself", () => {
+  it("is always Tasks, the first tab, even with nothing open", () => {
     expect(DEFAULT_TAB).toBe("items");
-    expect(panelTabs({ unreadMail: 9, openDecisions: 9, yourActions: 9, openItems: 0 })[0].id).toBe(DEFAULT_TAB);
-    expect(effectiveTab(DEFAULT_TAB, true)).toBe(DEFAULT_TAB);
-    expect(effectiveTab(DEFAULT_TAB, false)).toBe(DEFAULT_TAB);
+    expect(panelTabs({ openDecisions: 9, yourActions: 9, openItems: 0 })[0].id).toBe(DEFAULT_TAB);
   });
 });

@@ -77,8 +77,9 @@ function ItemActions({ theme, item }: { theme: PluginTheme; item: Item }) {
   };
   const busy = mutation.isPending;
   const button = { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: theme.colors.surface2 };
+  // The card already adds its 4 gap above this block; marginTop 8 makes the space above the buttons equal the card's 12 bottom padding.
   return (
-    <View style={{ gap: 6, marginTop: 4 }}>
+    <View style={{ gap: 6, marginTop: 8 }}>
       <View style={{ flexDirection: "row", gap: 8 }}>
         <Pressable accessibilityRole="button" accessibilityLabel="Tell the Assistant this is done" disabled={busy} onPress={() => submit(undefined)} style={[button, { opacity: busy ? 0.5 : 1 }]}>
           <Text style={{ color: theme.colors.foreground, fontSize: 13 }}>Done</Text>

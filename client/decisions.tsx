@@ -18,10 +18,10 @@ const REFRESH_MS = 10_000;
 export const cancelQueue = new UndoQueue(() => undefined, 5_000);
 
 /** The pending-decisions count shown beside the sidebar row. */
-export function DecisionsBadge({ text }: { text: string }) {
+export function DecisionsBadge({ theme, text }: { theme: PluginTheme; text: string }) {
   return (
-    <View accessibilityLabel={`${text} pending decisions`} style={{ minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, alignItems: "center", justifyContent: "center", backgroundColor: "#d33" }}>
-      <Text style={{ color: "#fff", fontSize: 11, fontWeight: "600" }}>{text}</Text>
+    <View accessibilityLabel={`${text} pending decisions`} style={{ minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, alignItems: "center", justifyContent: "center", backgroundColor: theme.colors.accent }}>
+      <Text style={{ color: theme.colors.accentForeground, fontSize: 11, fontWeight: "600" }}>{text}</Text>
     </View>
   );
 }
