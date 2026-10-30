@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
-import { decisionCancelRpc, decisionAnswerRpc, currentRpc, shimsRpc, uiGetRpc, uiSetRpc, decisionListRpc, ensureRpc, itemDoneRpc, itemListRpc, mailListRpc, mailReadRpc, resetRpc, reviewTasksRpc } from "./shared/rpc";
+import { decisionCancelRpc, decisionAnswerRpc, currentRpc, shimsRpc, uiGetRpc, uiSetRpc, decisionListRpc, ensureRpc, itemDoneRpc, itemListRpc, resetRpc, reviewTasksRpc } from "./shared/rpc";
 import { DEFAULT_PROVIDER, assistantSettings, settingsSchema } from "./shared/settings";
 import { MailHttp } from "./server/http";
 import { isOpen } from "./shared/decision";
@@ -9,7 +9,7 @@ import { noteForTurn } from "./server/ask-check";
 import { UiPrefs } from "./server/ui-prefs";
 import { ItemStore } from "./server/items";
 import { ItemNoteStore, isNoteId, itemNoteNudge } from "./server/item-notes";
-import { AgentsMailClient, AgentsMailError } from "./server/agentsmail";
+import { AgentsMailClient } from "./server/agentsmail";
 import { ShimUsageStore, describeReport, shimReport } from "./server/shims";
 import { Delivery, PendingDeliveries, dropStaleOnce, statusOf, titleOf } from "./server/delivery";
 import { McpServer } from "./server/mcp";
@@ -224,16 +224,6 @@ export default function contribute(server: PluginServerContext) {
     delivery.requestReview();
     return { result: status === "idle" ? ("sent" as const) : ("queued" as const) };
   });
-  server.handle(mailListRpc, async () => {
-    const state = await agentsMail.availability();
-    if (!state.available) return { availability: state.reason, mails: [] };
-    try {
-      return { availability: "ok" as const, mails: await agentsMail.list() };
-    } catch (error) {
-      if (error instanceof AgentsMailError) return { availability: error.reason === "rejected" ? ("unreachable" as const) : error.reason, mails: [] };
-      throw error;
-    }
-  });
   server.handle(itemListRpc, async () => ({ items: items.list() }));
   server.handle(itemDoneRpc, async (input, ctx) => {
     capture(ctx);
@@ -256,14 +246,6 @@ export default function contribute(server: PluginServerContext) {
     const decision = decisions.answer(input.id, input.answer, input.other);
     delivery.enqueueDecision(decision.id);
     return { decision };
-  });
-  server.handle(mailReadRpc, async (input) => {
-    try {
-      return { marked: await agentsMail.markRead(input.ids) };
-    } catch (error) {
-      if (error instanceof AgentsMailError) return { marked: 0 };
-      throw error;
-    }
   });
 
   const removeOpen = server.before("agent.session_open", ({ request }, ctx) => {

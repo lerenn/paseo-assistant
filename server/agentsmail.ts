@@ -7,8 +7,6 @@ export const ASSISTANT_MAILBOX = "alias:assistant";
 const REQUIRED_API = 1;
 const TIMEOUT_MS = 3_000;
 
-export type Availability = { available: true } | { available: false; reason: "not-installed" | "unreachable" | "outdated" };
-
 /** A mail as the Agents Mail admin API returns it (only the fields the Assistant uses). */
 interface RemoteMail {
   id: string;
@@ -84,15 +82,6 @@ export class AgentsMailClient {
     if (res.status === 401 || res.status === 404) throw new AgentsMailError("unreachable", "Agents Mail refused the request; it may have restarted.");
     if (!res.ok) throw new AgentsMailError("rejected", json.error ?? `Agents Mail answered ${res.status}.`);
     return json;
-  }
-
-  async availability(): Promise<Availability> {
-    try {
-      await this.call("GET", "/api/health");
-      return { available: true };
-    } catch (error) {
-      return { available: false, reason: error instanceof AgentsMailError && error.reason !== "rejected" ? error.reason : "unreachable" };
-    }
   }
 
   /** The Assistant's mailbox: unread first, then newest first. */

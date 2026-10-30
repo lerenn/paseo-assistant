@@ -3,7 +3,7 @@ import { SidebarRow } from "@getpaseo/plugin/client/ui";
 import { DecisionsBadge, useDecisions } from "./client/decisions";
 import { BusyIcon, IdleIcon, useAssistantBusy } from "./client/busy-icon";
 import { isOpen } from "./shared/decision";
-import { countBadge } from "./client/mail-format";
+import { countBadge } from "./client/panel";
 import { AssistantScreen } from "./client/screen";
 
 export const SCREEN_ID = "assistant";

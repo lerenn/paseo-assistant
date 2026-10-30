@@ -23,5 +23,3 @@ export const mailSchema = z.object({
   read: z.boolean(),
 });
 export type Mail = z.output<typeof mailSchema>;
-
-export type MailAvailability = "ok" | "not-installed" | "unreachable" | "outdated";

@@ -10,9 +10,8 @@ import { ensureRpc, resetRpc, reviewTasksRpc, uiGetRpc, uiSetRpc } from "../shar
 import { DecisionsBadge, DecisionsView, useDecisions } from "./decisions";
 import { ItemsView, useItems } from "./items";
 import { SettingsView } from "./settings-view";
-import { MailboxView, useMail } from "./mailbox";
 import { reviewDisabled, reviewLabel, runReview, type ReviewState } from "./review";
-import { DEFAULT_PANEL_WIDTH, DEFAULT_TAB, clampPanelWidth, effectiveTab, itemCounts, mailHint, panelLayout, panelMemory, panelTabs, toggleBadge, widthAfterDrag, type PanelTab } from "./panel";
+import { DEFAULT_PANEL_WIDTH, DEFAULT_TAB, clampPanelWidth, itemCounts, panelLayout, panelMemory, panelTabs, toggleBadge, widthAfterDrag, type PanelTab } from "./panel";
 
 const SESSION_KEY = ["assistant", "session"];
 
@@ -59,15 +58,10 @@ export function AssistantScreen(props: PluginScreenProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
-  const mail = useMail();
-  const mails = mail.data?.mails ?? [];
-  // While the first answer is pending the tab counts as available; once Agents Mail is missing or silent it is not.
-  const mailAvailable = (mail.data?.availability ?? "ok") === "ok";
-  const tab = effectiveTab(wantedTab, mailAvailable);
+  const tab = wantedTab;
   const decisions = useDecisions().data?.decisions ?? [];
   const items = useItems().data?.items ?? [];
   const counts = {
-    unreadMail: mails.filter((m) => !m.read).length,
     openDecisions: decisions.filter(isOpen).length,
     ...itemCounts(items),
   };
@@ -124,7 +118,7 @@ export function AssistantScreen(props: PluginScreenProps) {
     <AgentChat key={session.data.agentId} agentId={session.data.agentId} />
   ) : session.data ? (
     <View style={styles.chat}>
-      <Text style={styles.note}>The Assistant is a regular agent. Open its conversation to talk to it; current tasks, your decisions, your actions and the mailbox are in the panel on the right.</Text>
+      <Text style={styles.note}>The Assistant is a regular agent. Open its conversation to talk to it; current tasks, your decisions and your actions are in the panel on the right.</Text>
       <Pressable
         accessibilityRole="button"
         disabled={!openAgent}
@@ -153,15 +147,13 @@ export function AssistantScreen(props: PluginScreenProps) {
         </View>
       ) : null}
       <View style={{ flexDirection: "row", paddingHorizontal: 12, paddingVertical: 6, gap: 6, flexWrap: "wrap" }}>
-        {panelTabs(counts, mailAvailable, mailHint(mail.data?.availability ?? "ok") ?? undefined).map((t) => (
+        {panelTabs(counts).map((t) => (
           <Pressable
             key={t.id}
             accessibilityRole="tab"
-            accessibilityState={{ disabled: t.disabled, selected: tab === t.id }}
-            accessibilityHint={t.hint ?? undefined}
-            disabled={t.disabled}
+            accessibilityState={{ selected: tab === t.id }}
             onPress={() => setTab(t.id)}
-            style={[styles.button, { opacity: t.disabled ? 0.4 : tab === t.id ? 1 : 0.6 }]}
+            style={[styles.button, { opacity: tab === t.id ? 1 : 0.6 }]}
           >
             <Text style={styles.buttonText}>
               {t.label}
@@ -183,12 +175,9 @@ export function AssistantScreen(props: PluginScreenProps) {
             <Text style={styles.primaryButtonText}>{reviewLabel(review)}</Text>
           </Pressable>
         ) : null}
-        {mailAvailable ? null : <Text style={{ color: theme.colors.foregroundMuted, fontSize: 12, alignSelf: "center" }}>Mailbox: {mailHint(mail.data?.availability ?? "ok")}</Text>}
       </View>
       <View style={{ flex: 1 }}>
-        {tab === "mailbox" ? (
-          <MailboxView theme={theme} mails={mails} availability={mail.data?.availability} openAgent={openAgent} />
-        ) : tab === "decisions" ? (
+        {tab === "decisions" ? (
           <DecisionsView theme={theme} decisions={decisions} />
         ) : tab === "actions" ? (
           <ItemsView theme={theme} items={items} owner="human" />
