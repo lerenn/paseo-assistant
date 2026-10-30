@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
-import { decisionCancelRpc, decisionAnswerRpc, currentRpc, shimsRpc, uiGetRpc, uiSetRpc, decisionListRpc, ensureRpc, itemListRpc, mailListRpc, mailReadRpc, resetRpc, reviewTasksRpc } from "./shared/rpc";
+import { decisionCancelRpc, decisionAnswerRpc, currentRpc, shimsRpc, uiGetRpc, uiSetRpc, decisionListRpc, ensureRpc, itemDoneRpc, itemListRpc, mailListRpc, mailReadRpc, resetRpc, reviewTasksRpc } from "./shared/rpc";
 import { DEFAULT_PROVIDER, assistantSettings, settingsSchema } from "./shared/settings";
 import { MailHttp } from "./server/http";
 import { isOpen } from "./shared/decision";
@@ -8,6 +8,7 @@ import { DecisionStore, cancelNudge, decisionNudge } from "./server/decisions";
 import { noteForTurn } from "./server/ask-check";
 import { UiPrefs } from "./server/ui-prefs";
 import { ItemStore } from "./server/items";
+import { ItemNoteStore, isNoteId, itemNoteNudge } from "./server/item-notes";
 import { AgentsMailClient, AgentsMailError } from "./server/agentsmail";
 import { ShimUsageStore, describeReport, shimReport } from "./server/shims";
 import { Delivery, PendingDeliveries, dropStaleOnce, statusOf, titleOf } from "./server/delivery";
@@ -46,6 +47,7 @@ export default function contribute(server: PluginServerContext) {
   const shimUsage = new ShimUsageStore(process.env.ASSISTANT_SHIM_USAGE ?? join(dataDir, "shim-usage.json"));
   const items = new ItemStore(process.env.ASSISTANT_ITEMS ?? join(dataDir, "items.json"));
   const decisions = new DecisionStore(process.env.ASSISTANT_DECISIONS ?? join(dataDir, "decisions.json"));
+  const itemNotes = new ItemNoteStore(process.env.ASSISTANT_ITEM_NOTES ?? join(dataDir, "item-notes.json"));
   const tokens = new CapabilityStore(process.env.ASSISTANT_CAPABILITIES ?? join(dataDir, "capabilities.json"));
 
   // The Paseo API only reaches a plugin through hook and RPC contexts; keep the first one seen.
@@ -79,16 +81,23 @@ export default function contribute(server: PluginServerContext) {
 
   const pendingQueue = new PendingDeliveries(process.env.ASSISTANT_PENDING ?? join(dataDir, "pending-deliveries.json"));
 
-  /** New mail and answered decisions reach the Assistant only when it is idle; see Delivery. */
+  /** New mail, answered decisions and Done notes from Your Actions reach the Assistant only when it is idle; see Delivery. */
   const delivery = new Delivery({
     queue: pendingQueue,
-    delivered: (ids) => decisions.markDelivered(ids),
+    delivered: (ids) => {
+      decisions.markDelivered(ids);
+      itemNotes.markDelivered(ids);
+    },
     status: async () => {
       const assistantId = session.currentAgentId();
       if (!assistantId || !paseo) return null;
       return statusOf(await paseo.agents.ref(assistantId).refresh());
     },
     decisionText: (id) => {
+      if (isNoteId(id)) {
+        const note = itemNotes.get(id);
+        return note ? itemNoteNudge(note) : null;
+      }
       const decision = decisions.list().find((d) => d.id === id);
       if (!decision) return null;
       return decision.cancelledAt !== null ? cancelNudge(decision) : decision.answer ? decisionNudge(decision) : null;
@@ -226,6 +235,15 @@ export default function contribute(server: PluginServerContext) {
     }
   });
   server.handle(itemListRpc, async () => ({ items: items.list() }));
+  server.handle(itemDoneRpc, async (input, ctx) => {
+    capture(ctx);
+    const item = items.list().find((i) => i.id === input.id);
+    if (!item) throw new Error("Unknown item");
+    if (item.closed) throw new Error("Item already closed");
+    const { note, duplicate } = itemNotes.add({ itemId: item.id, title: item.title, text: input.text });
+    if (!duplicate) delivery.enqueueDecision(note.id);
+    return { duplicate };
+  });
   server.handle(decisionListRpc, async () => ({ decisions: decisions.list() }));
   server.handle(decisionCancelRpc, async (input, ctx) => {
     capture(ctx);

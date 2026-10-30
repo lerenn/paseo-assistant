@@ -1,11 +1,12 @@
 import { useRpc } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { Linking, Pressable, ScrollView, Text, View } from "react-native";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useRef, useState } from "react";
+import { Linking, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { isStale, type Item, type ItemOwner } from "../shared/item";
 import { groupTasks, type TaskGroup } from "./groups";
-import { itemListRpc } from "../shared/rpc";
+import { itemDoneRpc, itemListRpc } from "../shared/rpc";
+import { canSend } from "./keys";
 import { cardStyle } from "./card";
 import { CardHeader } from "./card-header";
 import { IdChip } from "./id-chip";
@@ -49,12 +50,74 @@ function StateBadge({ theme, item }: { theme: PluginTheme; item: Item }) {
   ) : null;
 }
 
+/**
+ * Done and More… under an open action: both queue a message to the Assistant (its id and title, that the user did it, and
+ * the text typed in More…). The item stays open: the Assistant checks it and closes it.
+ */
+function ItemActions({ theme, item }: { theme: PluginTheme; item: Item }) {
+  const doneRpc = useRpc(itemDoneRpc);
+  const [more, setMore] = useState(false);
+  const [text, setText] = useState("");
+  // Set synchronously, so a double click sends once even before the disabled state renders (the server dedupes too).
+  const inFlight = useRef(false);
+  const mutation = useMutation({
+    mutationFn: (note: string | undefined) => doneRpc({ id: item.id, text: note }),
+    onSuccess: () => {
+      setMore(false);
+      setText("");
+    },
+    onSettled: () => {
+      inFlight.current = false;
+    },
+  });
+  const submit = (note: string | undefined) => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    mutation.mutate(note);
+  };
+  const busy = mutation.isPending;
+  const button = { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: theme.colors.surface2 };
+  return (
+    <View style={{ gap: 6, marginTop: 4 }}>
+      <View style={{ flexDirection: "row", gap: 8 }}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Tell the Assistant this is done" disabled={busy} onPress={() => submit(undefined)} style={[button, { opacity: busy ? 0.5 : 1 }]}>
+          <Text style={{ color: theme.colors.foreground, fontSize: 13 }}>Done</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityState={{ expanded: more }} disabled={busy} onPress={() => setMore((v) => !v)} style={[button, { opacity: busy ? 0.5 : 1 }]}>
+          <Text style={{ color: theme.colors.foreground, fontSize: 13 }}>More…</Text>
+        </Pressable>
+      </View>
+      {more ? (
+        <View style={{ gap: 6 }}>
+          <TextInput
+            autoFocus
+            multiline
+            value={text}
+            onChangeText={setText}
+            placeholder="What you did, or what the Assistant should know"
+            placeholderTextColor={theme.colors.foregroundMuted}
+            style={{ color: theme.colors.foreground, backgroundColor: theme.colors.surface2, borderRadius: 8, padding: 10, minHeight: 60 }}
+          />
+          <Text style={{ color: theme.colors.foregroundMuted, fontSize: 11 }}>Don't paste secrets: the text goes to the Assistant as it is.</Text>
+          <Pressable accessibilityRole="button" disabled={!canSend(text, busy)} onPress={() => submit(text.trim())} style={[button, { alignSelf: "flex-start", opacity: canSend(text, busy) ? 1 : 0.5 }]}>
+            <Text style={{ color: theme.colors.foreground, fontSize: 13 }}>Send</Text>
+          </Pressable>
+        </View>
+      ) : null}
+      {busy ? <Text style={{ color: theme.colors.foregroundMuted, fontSize: 12 }}>Sending…</Text> : null}
+      {mutation.isSuccess && !busy ? <Text style={{ color: theme.colors.statusSuccess, fontSize: 12 }}>Sent to the Assistant</Text> : null}
+      {mutation.error && !busy ? <Text style={{ color: theme.colors.statusDanger, fontSize: 12 }}>Could not send: {mutation.error.message}</Text> : null}
+    </View>
+  );
+}
+
 function ItemRow({ theme, item, rich }: { theme: PluginTheme; item: Item; rich?: boolean }) {
   return (
     <View style={[cardStyle(theme, { muted: !!item.closed }), { gap: 4 }]}>
       <CardHeader theme={theme} id={item.id} right={<StateBadge theme={theme} item={item} />} />
       <Text style={{ color: theme.colors.foreground, fontSize: 14, fontWeight: item.closed ? "400" : "600" }}>{item.title}</Text>
       <ItemBody theme={theme} item={item} rich={rich} />
+      {item.owner === "human" && !item.closed ? <ItemActions theme={theme} item={item} /> : null}
     </View>
   );
 }
