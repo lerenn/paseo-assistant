@@ -8,7 +8,7 @@ import { AssistantScreen } from "./client/screen";
 
 export const SCREEN_ID = "assistant";
 
-function AssistantItem({ currentScreen, openScreen }: PluginSidebarItemProps) {
+function AssistantItem({ theme, currentScreen, openScreen }: PluginSidebarItemProps) {
   const busy = useAssistantBusy();
   const open = (useDecisions().data?.decisions ?? []).filter(isOpen).length;
   return (
@@ -16,7 +16,7 @@ function AssistantItem({ currentScreen, openScreen }: PluginSidebarItemProps) {
       icon={busy ? BusyIcon : IdleIcon}
       active={currentScreen?.screenId === SCREEN_ID}
       onPress={() => openScreen({ screenId: SCREEN_ID })}
-      trailing={open > 0 ? <DecisionsBadge text={countBadge(open)} /> : undefined}
+      trailing={open > 0 ? <DecisionsBadge theme={theme} text={countBadge(open)} /> : undefined}
     />
   );
 }

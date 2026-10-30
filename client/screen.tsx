@@ -215,7 +215,7 @@ export function AssistantScreen(props: PluginScreenProps) {
           style={[styles.button, { flexDirection: "row", alignItems: "center", gap: 6, opacity: open ? 1 : 0.7 }]}
         >
           <Icon name={open ? "PanelRightClose" : "PanelRight"} size={16} color={theme.colors.foreground} />
-          {badge && !open ? <DecisionsBadge text={badge} /> : null}
+          {badge && !open ? <DecisionsBadge theme={theme} text={badge} /> : null}
         </Pressable>
       </View>
       {showSettings ? <SettingsView theme={theme} onClose={() => setShowSettings(false)} /> : null}
