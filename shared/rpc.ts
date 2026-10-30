@@ -113,3 +113,14 @@ export const reviewTasksRpc = defineRpc({
   input: z.object({}),
   output: z.object({ result: z.enum(["sent", "queued", "no-assistant"]) }),
 });
+
+/**
+ * Done (and More…, with a text) on a Your Actions card: tells the Assistant the user marked the item done, queued until
+ * its turn (the same delivery as decision answers, never steering a running turn). The item stays open: the Assistant
+ * checks it and closes it. `duplicate` when the same note for the item was still waiting (a double click).
+ */
+export const itemDoneRpc = defineRpc({
+  name: "assistant.item.done",
+  input: z.object({ id: z.string(), text: z.string().max(5000).optional() }),
+  output: z.object({ duplicate: z.boolean() }),
+});
